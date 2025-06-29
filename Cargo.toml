@@ -11,8 +11,10 @@ readme = "README.md"
 proc-macro = true
 
 [dependencies]
-rayca-core = { git = "https://github.com/Fahien/rayca-core" }
 syn = { version = "2.0.41", features = ["full"] }
 quote = "1.0.33"
 slang = { git = "https://github.com/Fahien/slang-rs" }
+proc-macro2 = "1.0.95"
 
+[dev-dependencies]
+rayca-core = { git = "https://github.com/Fahien/rayca-core" }
