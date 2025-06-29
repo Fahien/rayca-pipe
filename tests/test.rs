@@ -17,6 +17,8 @@ pipewriter!(
 
 #[test]
 fn build_simple_shader() {
-    let _main = PipelineMain {};
-    let _secondary = PipelineSecondary {};
+    let ctx = Ctx::builder().build();
+    let dev = Dev::new(&ctx, None);
+    let _main = PipelineMain::new(&dev.device);
+    let _secondary = PipelineSecondary::new(&dev.device);
 }
