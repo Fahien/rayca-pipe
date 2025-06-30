@@ -47,8 +47,8 @@ impl ToTokens for Pipeline {
                     layout.expect("Failed to create Vulkan pipeline layout")
                 }
 
-                fn new_impl(vert_module: &ShaderModule, frag_module: &ShaderModule, pass: &Pass) -> vk::Pipeline {
-                    let entry = std::ffi::CString::new("main").expect("Failed to create vert entrypoint");
+                fn new_impl<V: VertexInput>(vert_module: &ShaderModule, frag_module: &ShaderModule, pass: &Pass) -> vk::Pipeline {
+                    let entry = std::ffi::CString::new("main").expect("Failed to create entry point");
 
                     let stages = [
                         vert_module.get_stage(&entry, vk::ShaderStageFlags::VERTEX),
@@ -57,13 +57,32 @@ impl ToTokens for Pipeline {
 
                     let layout = Self::new_layout(&pass.device);
 
-                    let vertex_input = vk::PipelineVertexInputStateCreateInfo::default();
+                    let vertex_attributes = V::get_attributes();
+                    let vertex_bindings = V::get_bindings();
+
+                    let vertex_input = vk::PipelineVertexInputStateCreateInfo::default()
+                        .vertex_attribute_descriptions(&vertex_attributes)
+                        .vertex_binding_descriptions(&vertex_bindings);
 
                     let input_assembly = vk::PipelineInputAssemblyStateCreateInfo::default()
-                        .topology(vk::PrimitiveTopology::TRIANGLE_LIST);
+                        .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
+                        .primitive_restart_enable(false);
+
+                    let depth_stencil = vk::PipelineDepthStencilStateCreateInfo::default()
+                        .depth_test_enable(true)
+                        .depth_write_enable(true)
+                        .depth_compare_op(vk::CompareOp::GREATER)
+                        .depth_bounds_test_enable(false)
+                        .stencil_test_enable(false);
 
                     let rasterization = vk::PipelineRasterizationStateCreateInfo::default()
-                        .line_width(1.0);
+                        .line_width(1.0)
+                        .depth_clamp_enable(false)
+                        .rasterizer_discard_enable(false)
+                        .polygon_mode(vk::PolygonMode::FILL)
+                        .cull_mode(vk::CullModeFlags::NONE)
+                        .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
+                        .depth_bias_enable(false);
 
                     // Pass as input? Or just use a default value.
                     let width = 1920;
@@ -95,6 +114,26 @@ impl ToTokens for Pipeline {
                         .alpha_to_coverage_enable(false)
                         .alpha_to_one_enable(false);
 
+                    let blend_attachments = [
+                        vk::PipelineColorBlendAttachmentState::default()
+                        .blend_enable(true)
+                        .color_write_mask(
+                            vk::ColorComponentFlags::R
+                                | vk::ColorComponentFlags::G
+                                | vk::ColorComponentFlags::B,
+                        )
+                        .src_color_blend_factor(vk::BlendFactor::SRC_ALPHA)
+                        .dst_color_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+                        .color_blend_op(vk::BlendOp::ADD)
+                        .src_alpha_blend_factor(vk::BlendFactor::ONE)
+                        .dst_alpha_blend_factor(vk::BlendFactor::ZERO)
+                        .color_blend_op(vk::BlendOp::ADD)
+                    ];
+
+                    let blend = vk::PipelineColorBlendStateCreateInfo::default()
+                        .logic_op_enable(false)
+                        .attachments(&blend_attachments);
+
                     let states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
                     let dynamics = vk::PipelineDynamicStateCreateInfo::default()
                         .dynamic_states(&states);
@@ -103,11 +142,14 @@ impl ToTokens for Pipeline {
                         .stages(&stages)
                         .layout(layout)
                         .render_pass(pass.render)
+                        .subpass(0)
                         .vertex_input_state(&vertex_input)
                         .input_assembly_state(&input_assembly)
+                        .depth_stencil_state(&depth_stencil)
                         .rasterization_state(&rasterization)
                         .viewport_state(&view)
                         .multisample_state(&multisample)
+                        .color_blend_state(&blend)
                         .dynamic_state(&dynamics);
 
                     let pipelines = unsafe { pass.device.create_graphics_pipelines(vk::PipelineCache::null(), &[create_info], None) };
@@ -117,7 +159,7 @@ impl ToTokens for Pipeline {
                     pipeline
                 }
 
-                pub fn new(pass: &Pass) -> Self {
+                pub fn new<V: VertexInput>(pass: &Pass) -> Self {
                     let vert_code = SlangProgram::get_entry_point_code(#vert_path, "main").expect("Failed to get code for entry point");
                     let frag_code = SlangProgram::get_entry_point_code(#frag_path, "main").expect("Failed to get code for entry point");
 
@@ -125,7 +167,7 @@ impl ToTokens for Pipeline {
                     let fragment = ShaderModule::from_data(&pass.device, &frag_code);
 
                     Self {
-                        pipeline: Self::new_impl(&vertex, &fragment, pass)
+                        pipeline: Self::new_impl::<V>(&vertex, &fragment, pass)
                     }
                 }
             }

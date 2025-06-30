@@ -46,16 +46,16 @@ impl Slang {
         }
     }
 
-    pub fn from_path<P: Into<PathBuf>>(&self, path: P) -> ShaderReflection {
+    pub fn from_path<'a, P: Into<PathBuf>>(&'a self, path: P) -> ShaderReflection<'a> {
         ShaderReflection::from_path(self, path)
     }
 
     #[allow(unused)]
-    pub fn from_source<P: Into<PathBuf>, S: Into<String>>(
-        &self,
+    pub fn from_source<'a, P: Into<PathBuf>, S: Into<String>>(
+        &'a self,
         path: P,
         source: S,
-    ) -> ShaderReflection {
+    ) -> ShaderReflection<'a> {
         ShaderReflection::from_source(self, path, source)
     }
 }
