@@ -1,4 +1,4 @@
-// Copyright © 2021-2024
+// Copyright © 2021-2025
 // Author: Antonio Caggiano <info@antoniocaggiano.eu>
 // SPDX-License-Identifier: MIT
 
@@ -12,8 +12,28 @@ impl ToTokens for Pipeline {
         let pipeline_name = format!("Pipeline{}", self.name);
         let pipeline_ident = Ident::new(&pipeline_name, Span::call_site());
 
-        let vert_path = self.vert_path.to_string_lossy();
-        let frag_path = self.frag_path.to_string_lossy();
+        let vert = &self.shaders[0];
+        let frag = &self.shaders[1];
+
+        let vert_path = vert.path.to_string_lossy();
+        if !vert.path.exists() {
+            panic!(
+                "{}:{}: Failed to find `{}`",
+                file!(),
+                line!(),
+                vert.path.display()
+            );
+        }
+
+        let frag_path = frag.path.to_string_lossy();
+        if !frag.path.exists() {
+            panic!(
+                "{}:{}: Failed to find `{}`",
+                file!(),
+                line!(),
+                frag.path.display()
+            );
+        }
 
         tokens.extend(quote! {
             pub struct #pipeline_ident {
