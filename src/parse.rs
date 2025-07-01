@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use slang::Downcast;
 

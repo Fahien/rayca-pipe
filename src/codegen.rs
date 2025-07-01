@@ -96,7 +96,7 @@ impl ToTokens for Pipeline {
                         .vertex_binding_descriptions(&vertex_bindings);
 
                     let input_assembly = vk::PipelineInputAssemblyStateCreateInfo::default()
-                        .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
+                        .topology(V::get_topology())
                         .primitive_restart_enable(false);
 
                     let depth_stencil = vk::PipelineDepthStencilStateCreateInfo::default()

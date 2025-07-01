@@ -4,8 +4,6 @@
 
 extern crate proc_macro;
 
-use std::path::PathBuf;
-
 use proc_macro::*;
 
 mod model;
