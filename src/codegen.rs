@@ -5,12 +5,14 @@
 use proc_macro2::*;
 use quote::*;
 
-use crate::Pipeline;
+use crate::model::*;
 
 impl ToTokens for Pipeline {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let pipeline_name = format!("Pipeline{}", self.name);
         let pipeline_ident = Ident::new(&pipeline_name, Span::call_site());
+
+        let set_layout_bindings = self.get_set_layout_bindings();
 
         let vert = &self.shaders[0];
         let frag = &self.shaders[1];
@@ -35,6 +37,8 @@ impl ToTokens for Pipeline {
             );
         }
 
+        let bind_methods = self.get_bind_methods();
+
         tokens.extend(quote! {
             pub struct #pipeline_ident {
                 set_layouts: Vec<vk::DescriptorSetLayout>,
@@ -45,8 +49,28 @@ impl ToTokens for Pipeline {
             }
 
             impl #pipeline_ident {
-                pub fn new_layout(device: &ash::Device) -> vk::PipelineLayout {
-                    let create_info = vk::PipelineLayoutCreateInfo::default();
+                fn create_set_layout(
+                    device: &ash::Device,
+                    bindings: &[vk::DescriptorSetLayoutBinding],
+                ) -> vk::DescriptorSetLayout {
+                    let set_layout_info = vk::DescriptorSetLayoutCreateInfo::default()
+                        .bindings(bindings);
+                    unsafe { device.create_descriptor_set_layout(&set_layout_info, None) }
+                        .expect("Failed to create Vulkan descriptor set layout")
+                }
+
+                fn new_set_layouts(device: &ash::Device) -> Vec<vk::DescriptorSetLayout> {
+                    let set_layout_bindings = [
+                        #( #set_layout_bindings, )*
+                    ];
+                    vec![
+                        Self::create_set_layout(device, &set_layout_bindings)
+                    ]
+                }
+
+                fn new_layout(device: &ash::Device, set_layouts: &[vk::DescriptorSetLayout]) -> vk::PipelineLayout {
+                    let create_info = vk::PipelineLayoutCreateInfo::default()
+                        .set_layouts(set_layouts);
                     let layout = unsafe { device.create_pipeline_layout(&create_info, None) };
                     layout.expect("Failed to create Vulkan pipeline layout")
                 }
@@ -156,7 +180,8 @@ impl ToTokens for Pipeline {
 
                     let device = pass.device.clone();
 
-                    let layout = Self::new_layout(&device);
+                    let set_layouts = Self::new_set_layouts(&device);
+                    let layout = Self::new_layout(&device, &set_layouts);
 
                     let vert_code = SlangProgram::get_entry_point_code(#vert_path, "main").expect("Failed to get code for entry point");
                     let frag_code = SlangProgram::get_entry_point_code(#frag_path, "main").expect("Failed to get code for entry point");
@@ -167,13 +192,15 @@ impl ToTokens for Pipeline {
                     let pipeline = Self::new_impl::<V>(layout, &vertex, &fragment, pass.render);
 
                     Self {
-                        set_layouts: Vec::default(),
+                        set_layouts,
                         layout,
                         pipeline,
                         device,
                         name,
                     }
                 }
+
+                #( #bind_methods )*
             }
 
             impl Pipeline for #pipeline_ident {
@@ -201,6 +228,9 @@ impl ToTokens for Pipeline {
             impl Drop for #pipeline_ident {
                 fn drop(&mut self) {
                     unsafe {
+                        for set_layout in &self.set_layouts {
+                            self.device.destroy_descriptor_set_layout(*set_layout, None);
+                        }
                         self.device.destroy_pipeline_layout(self.layout, None);
                         self.device.destroy_pipeline(self.pipeline, None);
                     }
@@ -212,4 +242,52 @@ impl ToTokens for Pipeline {
 
 pub fn codegen(pipeline: Pipeline) -> TokenStream {
     pipeline.to_token_stream()
+}
+
+impl ToTokens for SetLayoutBinding {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let binding = self.binding;
+        let descriptor_type = self.descriptor_type;
+        let stage = self.stage;
+
+        tokens.extend(quote! {
+            vk::DescriptorSetLayoutBinding::builder()
+                .binding(#binding)
+                .descriptor_type(#descriptor_type)
+                .descriptor_count(1)
+                .stage_flags(#stage)
+                .build()
+        })
+    }
+}
+
+impl ToTokens for DescriptorType {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let new_tokens = match self {
+            DescriptorType::Uniform => quote! { vk::DescriptorType::UNIFORM_BUFFER },
+            DescriptorType::CombinedSampler => {
+                quote! { vk::DescriptorType::COMBINED_IMAGE_SAMPLER }
+            }
+        };
+        tokens.extend(new_tokens)
+    }
+}
+
+impl ToTokens for ShaderType {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let new_tokens = match self {
+            ShaderType::Vertex => quote! {vk::ShaderStageFlags::VERTEX},
+            ShaderType::Fragment => quote! {vk::ShaderStageFlags::FRAGMENT},
+        };
+        tokens.extend(new_tokens)
+    }
+}
+
+impl ToTokens for BindMethod {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let bind_signature = format_ident!("bind_{}", self.name);
+        tokens.extend(quote! {
+            pub fn #bind_signature(&self) {}
+        })
+    }
 }
