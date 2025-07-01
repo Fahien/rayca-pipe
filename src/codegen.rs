@@ -175,7 +175,10 @@ impl ToTokens for Pipeline {
                     pipeline
                 }
 
-                pub fn new<V: VertexInput>(pass: &Pass) -> Self {
+                #[cfg(not(target_os = "android"))]
+                pub fn new<V: VertexInput>(
+                    pass: &Pass,
+                ) -> Self {
                     let name = String::from(#pipeline_name);
 
                     let device = pass.device.clone();
@@ -183,11 +186,32 @@ impl ToTokens for Pipeline {
                     let set_layouts = Self::new_set_layouts(&device);
                     let layout = Self::new_layout(&device, &set_layouts);
 
-                    let vert_code = SlangProgram::get_entry_point_code(#vert_path, "main").expect("Failed to get code for entry point");
-                    let frag_code = SlangProgram::get_entry_point_code(#frag_path, "main").expect("Failed to get code for entry point");
+                    let (vertex, fragment) = ShaderModule::create_shaders(&device, #vert_path, #frag_path);
 
-                    let vertex = ShaderModule::from_data(&device, &vert_code);
-                    let fragment = ShaderModule::from_data(&device, &frag_code);
+                    let pipeline = Self::new_impl::<V>(layout, &vertex, &fragment, pass.render);
+
+                    Self {
+                        set_layouts,
+                        layout,
+                        pipeline,
+                        device,
+                        name,
+                    }
+                }
+
+                #[cfg(target_os = "android")]
+                pub fn new<V: VertexInput>(
+                    android_app: &AndroidApp,
+                    pass: &Pass,
+                ) -> Self {
+                    let name = String::from(#pipeline_name);
+
+                    let device = pass.device.clone();
+
+                    let set_layouts = Self::new_set_layouts(&device);
+                    let layout = Self::new_layout(&device, &set_layouts);
+
+                    let (vertex, fragment) = ShaderModule::create_shaders(android_app, &device, #vert_path, #frag_path);
 
                     let pipeline = Self::new_impl::<V>(layout, &vertex, &fragment, pass.render);
 

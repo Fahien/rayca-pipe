@@ -3,12 +3,11 @@
 // SPDX-License-Identifier: MIT
 
 use std::marker::PhantomData;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use slang::Downcast;
 
 pub struct Slang {
-    root_path: PathBuf,
     session: slang::Session,
     _global_session: slang::GlobalSession,
 }
@@ -16,12 +15,6 @@ pub struct Slang {
 impl Slang {
     pub fn new() -> Slang {
         let global_session = slang::GlobalSession::new().unwrap();
-
-        let root_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-
-        let search_path = std::ffi::CString::new(root_path.to_string_lossy().as_bytes())
-            .expect("Failed to create CString for shader search path");
-        let search_paths = [search_path.as_ptr()];
 
         // All compiler options are available through this builder.
         let session_options = slang::CompilerOptions::default()
@@ -34,13 +27,11 @@ impl Slang {
 
         let session_desc = slang::SessionDesc::default()
             .targets(&targets)
-            .search_paths(&search_paths)
             .options(&session_options);
 
         let session = global_session.create_session(&session_desc).unwrap();
 
         Slang {
-            root_path,
             session,
             _global_session: global_session,
         }
@@ -115,7 +106,7 @@ impl<'a> ShaderReflection<'a> {
     }
 
     pub fn from_path<P: Into<PathBuf>>(slang: &'a Slang, file_path: P) -> ShaderReflection<'a> {
-        let shader_path = slang.root_path.join(file_path.into());
+        let shader_path = file_path.into();
 
         let module = slang
             .session
