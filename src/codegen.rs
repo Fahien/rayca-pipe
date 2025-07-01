@@ -247,6 +247,10 @@ impl ToTokens for Pipeline {
                 fn get_pipeline(&self) -> vk::Pipeline {
                     self.pipeline
                 }
+
+                fn get_device(&self) -> &ash::Device {
+                    &self.device
+                }
             }
 
             impl Drop for #pipeline_ident {
@@ -323,17 +327,45 @@ impl ToTokens for BindMethod {
 
         let write_sets = self.get_write_sets();
 
+        let set = self.uniforms[0].set;
+
         tokens.extend(quote! {
             pub fn #bind_signature(
                 &self,
-                set: vk::DescriptorSet,
+                cache: &mut FrameCache,
                 #( #method_params, )*
             ) {
-                unsafe {
-                    self.device.update_descriptor_sets(&[
-                        #( #write_sets, )*
+                if let Some(sets) = cache.descriptors.sets.get(&self.get_layout()) {
+                    unsafe {
+                        self.device.cmd_bind_descriptor_sets(
+                            cache.command_buffer,
+                            vk::PipelineBindPoint::GRAPHICS,
+                            self.get_layout(),
+                            #set,
+                            sets,
+                            &[],
+                        );
+                    }
+                } else {
+                    let sets = cache.descriptors.allocate(self.get_set_layouts());
 
-                    ], &[]);
+                    unsafe {
+                        self.device.update_descriptor_sets(
+                            &[
+                                #( #write_sets, )*
+                            ],
+                            &[]
+                        );
+                        self.device.cmd_bind_descriptor_sets(
+                            cache.command_buffer,
+                            vk::PipelineBindPoint::GRAPHICS,
+                            self.get_layout(),
+                            #set,
+                            &sets,
+                            &[],
+                        );
+                    }
+                    cache.descriptors.sets.insert(self.get_layout(), sets);
                 }
             }
         })
@@ -360,12 +392,13 @@ impl ToTokens for ParamType {
 
 impl ToTokens for WriteSet {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let set = self.descriptor_set;
         let binding = self.binding;
         let descriptor_type = self.descriptor_type;
         let info = &self.info;
         tokens.extend(quote! {
             vk::WriteDescriptorSet::default()
-                .dst_set(set)
+                .dst_set(sets[#set as usize])
                 .dst_binding(#binding)
                 .dst_array_element(0)
                 .descriptor_type(#descriptor_type)

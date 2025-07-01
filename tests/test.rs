@@ -17,16 +17,18 @@ pipewriter!(
 );
 
 impl RenderPipeline for PipelineMain {
-    fn render(&self, _frame: &Frame, buffer: &Buffer) {
-        self.bind_model(vk::DescriptorSet::default(), buffer);
-        self.bind_camera(vk::DescriptorSet::default(), buffer);
+    fn render(&self, frame: &mut Frame, buffer: &Buffer) {
+        self.bind(&frame.cache);
+        self.bind_model(&mut frame.cache, buffer);
+        self.bind_camera(&mut frame.cache, buffer);
         let texture = Texture::default();
-        self.bind_tex_sampler(vk::DescriptorSet::default(), &texture);
+        self.bind_tex_sampler(&mut frame.cache, &texture);
+        self.draw(&frame.cache, buffer);
     }
 }
 
 impl RenderPipeline for PipelineSecondary {
-    fn render(&self, _frame: &Frame, _buffer: &Buffer) {}
+    fn render(&self, _frame: &mut Frame, _buffer: &Buffer) {}
 }
 
 #[test]

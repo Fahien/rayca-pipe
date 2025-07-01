@@ -1117,7 +1117,7 @@ dependencies = [
 [[package]]
 name = "rayca-core"
 version = "0.1.0"
-source = "git+https://github.com/Fahien/rayca-core#106e9377c641488c4efa0c28bc2fe978c7c5f331"
+source = "git+https://github.com/Fahien/rayca-core#82a7251cea2596e8c144f7638fd01e2c0c5af781"
 dependencies = [
  "ash",
  "raw-window-metal",
@@ -1130,7 +1130,7 @@ dependencies = [
 [[package]]
 name = "rayca-geometry"
 version = "0.1.0"
-source = "git+https://github.com/Fahien/rayca-geometry#1638321f49a32912038bd4bebd41d2da5347bfe0"
+source = "git+https://github.com/Fahien/rayca-geometry#94a8c5c2f867b8286c75ee473370f70706a9d726"
 dependencies = [
  "rayca-math",
  "rayca-util",

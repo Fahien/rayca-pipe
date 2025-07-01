@@ -229,7 +229,7 @@ pub struct Param {
 #[derive(Clone, Debug)]
 pub struct Uniform {
     pub param: Param,
-    set: u32,
+    pub set: u32,
     binding: u32,
 }
 
