@@ -37,9 +37,11 @@ impl ToTokens for Pipeline {
 
         tokens.extend(quote! {
             pub struct #pipeline_ident {
+                set_layouts: Vec<vk::DescriptorSetLayout>,
                 layout: vk::PipelineLayout,
                 pipeline: vk::Pipeline,
                 device: std::rc::Rc<ash::Device>,
+                name: String,
             }
 
             impl #pipeline_ident {
@@ -53,7 +55,7 @@ impl ToTokens for Pipeline {
                     layout: vk::PipelineLayout,
                     vert_module: &ShaderModule,
                     frag_module: &ShaderModule,
-                    pass: &Pass,
+                    pass: vk::RenderPass,
                 ) -> vk::Pipeline {
                     let entry = std::ffi::CString::new("main").expect("Failed to create entry point");
 
@@ -99,8 +101,8 @@ impl ToTokens for Pipeline {
                             .y(0.0)
                             .width(width as f32)
                             .height(height as f32)
-                            .min_depth(1.0) // TODO: 1.0 is near?
-                            .max_depth(0.0) // 0.0 is far?
+                            .min_depth(0.0)
+                            .max_depth(1.0)
                     ];
 
                     let scissors = [
@@ -121,32 +123,18 @@ impl ToTokens for Pipeline {
 
                     let blend_attachments = [
                         vk::PipelineColorBlendAttachmentState::default()
-                        .blend_enable(true)
-                        .color_write_mask(
-                            vk::ColorComponentFlags::R
-                                | vk::ColorComponentFlags::G
-                                | vk::ColorComponentFlags::B,
-                        )
-                        .src_color_blend_factor(vk::BlendFactor::SRC_ALPHA)
-                        .dst_color_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
-                        .color_blend_op(vk::BlendOp::ADD)
-                        .src_alpha_blend_factor(vk::BlendFactor::ONE)
-                        .dst_alpha_blend_factor(vk::BlendFactor::ZERO)
-                        .color_blend_op(vk::BlendOp::ADD)
+                            .blend_enable(false)
+                            .color_write_mask(vk::ColorComponentFlags::RGBA)
                     ];
 
                     let blend = vk::PipelineColorBlendStateCreateInfo::default()
                         .logic_op_enable(false)
                         .attachments(&blend_attachments);
 
-                    let states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
-                    let dynamics = vk::PipelineDynamicStateCreateInfo::default()
-                        .dynamic_states(&states);
-
                     let create_info = vk::GraphicsPipelineCreateInfo::default()
                         .stages(&stages)
                         .layout(layout)
-                        .render_pass(pass.render)
+                        .render_pass(pass)
                         .subpass(0)
                         .vertex_input_state(&vertex_input)
                         .input_assembly_state(&input_assembly)
@@ -154,10 +142,9 @@ impl ToTokens for Pipeline {
                         .rasterization_state(&rasterization)
                         .viewport_state(&view)
                         .multisample_state(&multisample)
-                        .color_blend_state(&blend)
-                        .dynamic_state(&dynamics);
+                        .color_blend_state(&blend);
 
-                    let pipelines = unsafe { pass.device.create_graphics_pipelines(vk::PipelineCache::null(), &[create_info], None) };
+                    let pipelines = unsafe { vert_module.device.create_graphics_pipelines(vk::PipelineCache::null(), &[create_info], None) };
                     let mut pipelines = pipelines.expect("Failed to create Vulkan graphics pipeline");
                     let pipeline = pipelines.pop().expect("Failed to pop Vulkan pipeline");
 
@@ -165,6 +152,8 @@ impl ToTokens for Pipeline {
                 }
 
                 pub fn new<V: VertexInput>(pass: &Pass) -> Self {
+                    let name = String::from(#pipeline_name);
+
                     let device = pass.device.clone();
 
                     let layout = Self::new_layout(&device);
@@ -175,13 +164,37 @@ impl ToTokens for Pipeline {
                     let vertex = ShaderModule::from_data(&device, &vert_code);
                     let fragment = ShaderModule::from_data(&device, &frag_code);
 
-                    let pipeline = Self::new_impl::<V>(layout, &vertex, &fragment, pass);
+                    let pipeline = Self::new_impl::<V>(layout, &vertex, &fragment, pass.render);
 
                     Self {
+                        set_layouts: Vec::default(),
                         layout,
                         pipeline,
                         device,
+                        name,
                     }
+                }
+            }
+
+            impl Pipeline for #pipeline_ident {
+                fn as_any(&self) -> &dyn std::any::Any {
+                    self
+                }
+
+                fn get_name(&self) -> &String {
+                    &self.name
+                }
+
+                fn get_set_layouts(&self) -> &[vk::DescriptorSetLayout] {
+                    &self.set_layouts
+                }
+
+                fn get_layout(&self) -> vk::PipelineLayout {
+                    self.layout
+                }
+
+                fn get_pipeline(&self) -> vk::Pipeline {
+                    self.pipeline
                 }
             }
 

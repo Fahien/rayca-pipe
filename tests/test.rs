@@ -16,6 +16,14 @@ pipewriter!(
     "shaders/simple.frag.slang"
 );
 
+impl RenderPipeline for PipelineMain {
+    fn render(&self, _frame: &Frame, _buffer: &Buffer) {}
+}
+
+impl RenderPipeline for PipelineSecondary {
+    fn render(&self, _frame: &Frame, _buffer: &Buffer) {}
+}
+
 #[test]
 fn build_simple_shader() {
     let ctx = Ctx::builder().build();

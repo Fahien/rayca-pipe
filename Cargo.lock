@@ -464,7 +464,7 @@ checksum = "e04d7f318608d35d4b61ddd75cbdaee86b023ebe2bd5a66ee0915f0bf93095a9"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1117,7 +1117,7 @@ dependencies = [
 [[package]]
 name = "rayca-core"
 version = "0.1.0"
-source = "git+https://github.com/Fahien/rayca-core#b61294ff1aadfaaa5bee26e456d2e5c1a5c291c3"
+source = "git+https://github.com/Fahien/rayca-core#e5010ab172ac03c469d1c2e3be091f91da828520"
 dependencies = [
  "ash",
  "raw-window-metal",
