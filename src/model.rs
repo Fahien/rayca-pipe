@@ -195,7 +195,7 @@ impl Shader {
 
         let mut ret = vec![BindMethod::default(); descriptor_set_count];
         for uniform in &self.uniforms {
-            ret[uniform.set as usize].params.push(uniform.param.clone());
+            ret[uniform.set as usize].uniforms.push(uniform.clone());
         }
         ret
     }
@@ -228,7 +228,7 @@ pub struct Param {
 
 #[derive(Clone, Debug)]
 pub struct Uniform {
-    param: Param,
+    pub param: Param,
     set: u32,
     binding: u32,
 }
@@ -257,9 +257,10 @@ pub enum ParamType {
     Vec2,
     Vec3,
     Vec4,
+    Mat3,
     Mat4,
     SampledImage,
-    Struct,
+    Struct(usize),
 }
 
 impl From<slang::ReflectionType> for ParamType {
@@ -281,6 +282,7 @@ impl From<slang::ReflectionType> for ParamType {
                 ),
             },
             slang::TypeKind::Matrix => match (row_count, column_count) {
+                (3, 3) => Self::Mat3,
                 (4, 4) => Self::Mat4,
                 _ => panic!(
                     "{}:{}: unsupported matrix[{}][{}]",
@@ -291,8 +293,22 @@ impl From<slang::ReflectionType> for ParamType {
                 ),
             },
             slang::TypeKind::ConstantBuffer => ty.get_element_type().unwrap().into(),
-            slang::TypeKind::Struct => Self::Struct,
+            slang::TypeKind::Resource => Self::SampledImage,
+            slang::TypeKind::Struct => Self::Struct(0),
             _ => panic!("{}:{}: unsupported slang type {:?}", file!(), line!(), kind),
+        }
+    }
+}
+impl ParamType {
+    pub fn get_size(&self) -> usize {
+        match self {
+            ParamType::Vec2 => std::mem::size_of::<f32>() * 2,
+            ParamType::Vec3 => std::mem::size_of::<f32>() * 4, // simd
+            ParamType::Vec4 => std::mem::size_of::<f32>() * 4,
+            ParamType::Mat3 => std::mem::size_of::<f32>() * 9,
+            ParamType::Mat4 => std::mem::size_of::<f32>() * 16,
+            ParamType::Struct(size) => *size,
+            _ => panic!("{}:{}: no size for `{:?}`", file!(), line!(), self),
         }
     }
 }
@@ -306,12 +322,8 @@ pub enum DescriptorType {
 impl From<ParamType> for DescriptorType {
     fn from(param: ParamType) -> Self {
         match param {
-            ParamType::Vec2
-            | ParamType::Vec3
-            | ParamType::Vec4
-            | ParamType::Mat4
-            | ParamType::Struct => DescriptorType::Uniform,
             ParamType::SampledImage => DescriptorType::CombinedSampler,
+            _ => DescriptorType::Uniform,
         }
     }
 }
@@ -325,16 +337,32 @@ pub struct SetLayoutBinding {
 
 #[derive(Clone, Default)]
 pub struct BindMethod {
-    pub params: Vec<Param>,
+    pub uniforms: Vec<Uniform>,
 }
 
 impl BindMethod {
     pub fn get_method_params(&self) -> Vec<MethodParam> {
         let mut ret = Vec::new();
-        for param in &self.params {
+        for uniform in &self.uniforms {
             ret.push(MethodParam {
-                name: param.name.clone(),
-                ty: param.ty,
+                name: uniform.param.name.clone(),
+                ty: uniform.param.ty,
+            })
+        }
+        ret
+    }
+
+    pub fn get_write_sets(&self) -> Vec<WriteSet> {
+        let mut ret = Vec::new();
+        for uniform in &self.uniforms {
+            ret.push(WriteSet {
+                descriptor_set: uniform.set,
+                binding: uniform.binding,
+                descriptor_type: uniform.param.ty.into(),
+                info: WriteSetInfo {
+                    name: uniform.param.name.clone(),
+                    ty: uniform.param.ty,
+                },
             })
         }
         ret
@@ -343,6 +371,22 @@ impl BindMethod {
 
 #[derive(Clone, Debug)]
 pub struct MethodParam {
+    pub name: String,
+    pub ty: ParamType,
+}
+
+#[derive(Clone, Debug)]
+pub struct WriteSet {
+    pub descriptor_set: u32,
+    pub binding: u32,
+    pub descriptor_type: DescriptorType,
+    pub info: WriteSetInfo,
+}
+
+/// The info associated to the `WriteDescriptorSet` changes according to the
+/// type of the parameter.
+#[derive(Clone, Debug)]
+pub struct WriteSetInfo {
     pub name: String,
     pub ty: ParamType,
 }

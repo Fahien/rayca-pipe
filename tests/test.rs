@@ -18,8 +18,10 @@ pipewriter!(
 
 impl RenderPipeline for PipelineMain {
     fn render(&self, _frame: &Frame, buffer: &Buffer) {
-        self.bind_model(buffer);
-        self.bind_camera(buffer);
+        self.bind_model(vk::DescriptorSet::default(), buffer);
+        self.bind_camera(vk::DescriptorSet::default(), buffer);
+        let texture = Texture::default();
+        self.bind_tex_sampler(vk::DescriptorSet::default(), &texture);
     }
 }
 

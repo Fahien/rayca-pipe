@@ -310,9 +310,9 @@ impl ToTokens for BindMethod {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         // Build the signature of the function
         let joined_param_names = self
-            .params
+            .uniforms
             .iter()
-            .map(|param| param.name.clone())
+            .map(|uniform| uniform.param.name.clone())
             .collect::<Vec<String>>()
             .join("_and_");
 
@@ -321,12 +321,20 @@ impl ToTokens for BindMethod {
         // Build the string for the parameters of the function
         let method_params = self.get_method_params();
 
+        let write_sets = self.get_write_sets();
+
         tokens.extend(quote! {
             pub fn #bind_signature(
                 &self,
+                set: vk::DescriptorSet,
                 #( #method_params, )*
             ) {
+                unsafe {
+                    self.device.update_descriptor_sets(&[
+                        #( #write_sets, )*
 
+                    ], &[]);
+                }
             }
         })
     }
@@ -347,5 +355,54 @@ impl ToTokens for ParamType {
             _ => quote! { Buffer },
         };
         tokens.extend(new_tokens);
+    }
+}
+
+impl ToTokens for WriteSet {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let binding = self.binding;
+        let descriptor_type = self.descriptor_type;
+        let info = &self.info;
+        tokens.extend(quote! {
+            vk::WriteDescriptorSet::default()
+                .dst_set(set)
+                .dst_binding(#binding)
+                .dst_array_element(0)
+                .descriptor_type(#descriptor_type)
+        });
+
+        if self.info.ty == ParamType::SampledImage {
+            tokens.extend(quote! { .image_info(&#info) });
+        } else {
+            tokens.extend(quote! { .buffer_info(&#info) });
+        }
+        tokens.extend(quote! {});
+    }
+}
+
+impl ToTokens for WriteSetInfo {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let name = Ident::new(&self.name, Span::call_site());
+        let ty = self.ty;
+
+        if ty == ParamType::SampledImage {
+            tokens.extend(quote! {
+                [
+                    vk::DescriptorImageInfo::default()
+                        .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                        .image_view(#name.view)
+                        .sampler(#name.sampler)
+                ]
+            });
+        } else {
+            let size = ty.get_size();
+            tokens.extend(quote! {
+                [
+                    vk::DescriptorBufferInfo::default()
+                        .range(#size as vk::DeviceSize)
+                        .buffer(#name.buffer)
+                ]
+            });
+        }
     }
 }
