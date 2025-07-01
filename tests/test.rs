@@ -17,7 +17,10 @@ pipewriter!(
 );
 
 impl RenderPipeline for PipelineMain {
-    fn render(&self, _frame: &Frame, _buffer: &Buffer) {}
+    fn render(&self, _frame: &Frame, buffer: &Buffer) {
+        self.bind_model(buffer);
+        self.bind_camera(buffer);
+    }
 }
 
 impl RenderPipeline for PipelineSecondary {

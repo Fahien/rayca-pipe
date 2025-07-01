@@ -116,8 +116,8 @@ impl ToTokens for Pipeline {
                         .depth_bias_enable(false);
 
                     // Pass as input? Or just use a default value.
-                    let width = 1920;
-                    let height = 1080;
+                    let width = 480;
+                    let height = 480;
 
                     let viewports = [
                         vk::Viewport::default()
@@ -251,12 +251,11 @@ impl ToTokens for SetLayoutBinding {
         let stage = self.stage;
 
         tokens.extend(quote! {
-            vk::DescriptorSetLayoutBinding::builder()
+            vk::DescriptorSetLayoutBinding::default()
                 .binding(#binding)
                 .descriptor_type(#descriptor_type)
                 .descriptor_count(1)
                 .stage_flags(#stage)
-                .build()
         })
     }
 }
@@ -285,9 +284,44 @@ impl ToTokens for ShaderType {
 
 impl ToTokens for BindMethod {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let bind_signature = format_ident!("bind_{}", self.name);
+        // Build the signature of the function
+        let joined_param_names = self
+            .params
+            .iter()
+            .map(|param| param.name.clone())
+            .collect::<Vec<String>>()
+            .join("_and_");
+
+        let bind_signature = format_ident!("bind_{}", joined_param_names);
+
+        // Build the string for the parameters of the function
+        let method_params = self.get_method_params();
+
         tokens.extend(quote! {
-            pub fn #bind_signature(&self) {}
+            pub fn #bind_signature(
+                &self,
+                #( #method_params, )*
+            ) {
+
+            }
         })
+    }
+}
+
+impl ToTokens for MethodParam {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let name = Ident::new(&self.name, Span::call_site());
+        let ty = self.ty;
+        tokens.extend(quote! { #name: &#ty })
+    }
+}
+
+impl ToTokens for ParamType {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let new_tokens = match self {
+            ParamType::SampledImage => quote! { Texture },
+            _ => quote! { Buffer },
+        };
+        tokens.extend(new_tokens);
     }
 }

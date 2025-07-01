@@ -186,9 +186,16 @@ impl Shader {
     }
 
     pub fn get_bind_methods(&self) -> Vec<BindMethod> {
-        let mut ret = Vec::new();
+        // We need one bind method for each descriptor set
+        // so let us find the max descriptor set index
+        let mut descriptor_set_count = 0;
         for uniform in &self.uniforms {
-            ret.push(uniform.get_bind_method());
+            descriptor_set_count = descriptor_set_count.max(uniform.set as usize + 1);
+        }
+
+        let mut ret = vec![BindMethod::default(); descriptor_set_count];
+        for uniform in &self.uniforms {
+            ret[uniform.set as usize].params.push(uniform.param.clone());
         }
         ret
     }
@@ -213,13 +220,13 @@ impl From<slang::Stage> for ShaderType {
 
 /// A shader parameter can be any input/output parameter: a vertex attribute,
 /// a uniform, a sampler, and so on.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Param {
-    name: String,
+    pub name: String,
     ty: ParamType,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Uniform {
     param: Param,
     set: u32,
@@ -243,22 +250,16 @@ impl Uniform {
             binding: self.binding,
         }
     }
-
-    pub fn get_bind_method(&self) -> BindMethod {
-        BindMethod {
-            name: self.param.name.clone().to_lowercase(),
-        }
-    }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamType {
-    #[default]
-    Unknown,
     Vec2,
     Vec3,
     Vec4,
     Mat4,
+    SampledImage,
+    Struct,
 }
 
 impl From<slang::ReflectionType> for ParamType {
@@ -272,14 +273,26 @@ impl From<slang::ReflectionType> for ParamType {
                 2 => Self::Vec2,
                 3 => Self::Vec3,
                 4 => Self::Vec4,
-                _ => Self::Unknown,
+                _ => panic!(
+                    "{}:{}: unsupported vector[{}]",
+                    file!(),
+                    line!(),
+                    element_count
+                ),
             },
             slang::TypeKind::Matrix => match (row_count, column_count) {
                 (4, 4) => Self::Mat4,
-                _ => Self::Unknown,
+                _ => panic!(
+                    "{}:{}: unsupported matrix[{}][{}]",
+                    file!(),
+                    line!(),
+                    row_count,
+                    column_count
+                ),
             },
             slang::TypeKind::ConstantBuffer => ty.get_element_type().unwrap().into(),
-            _ => Self::Unknown,
+            slang::TypeKind::Struct => Self::Struct,
+            _ => panic!("{}:{}: unsupported slang type {:?}", file!(), line!(), kind),
         }
     }
 }
@@ -293,15 +306,12 @@ pub enum DescriptorType {
 impl From<ParamType> for DescriptorType {
     fn from(param: ParamType) -> Self {
         match param {
-            ParamType::Unknown => panic!(
-                "{}:{}: No descriptor type for `{:?}`",
-                file!(),
-                line!(),
-                param
-            ),
-            ParamType::Vec2 | ParamType::Vec3 | ParamType::Vec4 | ParamType::Mat4 => {
-                DescriptorType::Uniform
-            }
+            ParamType::Vec2
+            | ParamType::Vec3
+            | ParamType::Vec4
+            | ParamType::Mat4
+            | ParamType::Struct => DescriptorType::Uniform,
+            ParamType::SampledImage => DescriptorType::CombinedSampler,
         }
     }
 }
@@ -313,8 +323,28 @@ pub struct SetLayoutBinding {
     pub binding: u32,
 }
 
+#[derive(Clone, Default)]
 pub struct BindMethod {
+    pub params: Vec<Param>,
+}
+
+impl BindMethod {
+    pub fn get_method_params(&self) -> Vec<MethodParam> {
+        let mut ret = Vec::new();
+        for param in &self.params {
+            ret.push(MethodParam {
+                name: param.name.clone(),
+                ty: param.ty,
+            })
+        }
+        ret
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct MethodParam {
     pub name: String,
+    pub ty: ParamType,
 }
 
 #[cfg(test)]
