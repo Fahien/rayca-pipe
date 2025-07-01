@@ -37,7 +37,9 @@ impl ToTokens for Pipeline {
 
         tokens.extend(quote! {
             pub struct #pipeline_ident {
+                layout: vk::PipelineLayout,
                 pipeline: vk::Pipeline,
+                device: std::rc::Rc<ash::Device>,
             }
 
             impl #pipeline_ident {
@@ -47,15 +49,18 @@ impl ToTokens for Pipeline {
                     layout.expect("Failed to create Vulkan pipeline layout")
                 }
 
-                fn new_impl<V: VertexInput>(vert_module: &ShaderModule, frag_module: &ShaderModule, pass: &Pass) -> vk::Pipeline {
+                fn new_impl<V: VertexInput>(
+                    layout: vk::PipelineLayout,
+                    vert_module: &ShaderModule,
+                    frag_module: &ShaderModule,
+                    pass: &Pass,
+                ) -> vk::Pipeline {
                     let entry = std::ffi::CString::new("main").expect("Failed to create entry point");
 
                     let stages = [
                         vert_module.get_stage(&entry, vk::ShaderStageFlags::VERTEX),
                         frag_module.get_stage(&entry, vk::ShaderStageFlags::FRAGMENT),
                     ];
-
-                    let layout = Self::new_layout(&pass.device);
 
                     let vertex_attributes = V::get_attributes();
                     let vertex_bindings = V::get_bindings();
@@ -160,14 +165,31 @@ impl ToTokens for Pipeline {
                 }
 
                 pub fn new<V: VertexInput>(pass: &Pass) -> Self {
+                    let device = pass.device.clone();
+
+                    let layout = Self::new_layout(&device);
+
                     let vert_code = SlangProgram::get_entry_point_code(#vert_path, "main").expect("Failed to get code for entry point");
                     let frag_code = SlangProgram::get_entry_point_code(#frag_path, "main").expect("Failed to get code for entry point");
 
-                    let vertex = ShaderModule::from_data(&pass.device, &vert_code);
-                    let fragment = ShaderModule::from_data(&pass.device, &frag_code);
+                    let vertex = ShaderModule::from_data(&device, &vert_code);
+                    let fragment = ShaderModule::from_data(&device, &frag_code);
+
+                    let pipeline = Self::new_impl::<V>(layout, &vertex, &fragment, pass);
 
                     Self {
-                        pipeline: Self::new_impl::<V>(&vertex, &fragment, pass)
+                        layout,
+                        pipeline,
+                        device,
+                    }
+                }
+            }
+
+            impl Drop for #pipeline_ident {
+                fn drop(&mut self) {
+                    unsafe {
+                        self.device.destroy_pipeline_layout(self.layout, None);
+                        self.device.destroy_pipeline(self.pipeline, None);
                     }
                 }
             }
