@@ -1117,11 +1117,12 @@ dependencies = [
 [[package]]
 name = "rayca-core"
 version = "0.1.0"
-source = "git+https://github.com/Fahien/rayca-core#82a7251cea2596e8c144f7638fd01e2c0c5af781"
+source = "git+https://github.com/Fahien/rayca-core#16d1c81c914784ef983ecdae1327bd23edd2c2d4"
 dependencies = [
  "ash",
  "raw-window-metal",
  "rayca-geometry",
+ "rayca-gltf",
  "slang",
  "vk-mem",
  "winit",
@@ -1137,9 +1138,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayca-gltf"
+version = "0.1.0"
+source = "git+https://github.com/Fahien/rayca-gltf#207c05970b5f3592cbd324f84a8aa0a058b4e145"
+dependencies = [
+ "rayca-math",
+ "rayca-util",
+]
+
+[[package]]
 name = "rayca-math"
 version = "0.1.0"
-source = "git+https://github.com/Fahien/rayca-math#5a2992843f4ddef2ba1eb70f5a38414b48c2d9c5"
+source = "git+https://github.com/Fahien/rayca-math#4233e68f367b37a6013489df72bab9551810fa03"
 dependencies = [
  "num-traits",
  "rand",

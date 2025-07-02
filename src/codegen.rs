@@ -332,13 +332,15 @@ impl ToTokens for BindMethod {
         tokens.extend(quote! {
             pub fn #bind_signature(
                 &self,
-                cache: &mut FrameCache,
+                command_buffer: vk::CommandBuffer,
+                descriptors: &mut Descriptors,
+                node: Handle<Node>,
                 #( #method_params, )*
             ) {
-                if let Some(sets) = cache.descriptors.sets.get(&self.get_layout()) {
+                if let Some(sets) = descriptors.sets.get(&(self.get_layout(), node)) {
                     unsafe {
                         self.device.cmd_bind_descriptor_sets(
-                            cache.command_buffer,
+                            command_buffer,
                             vk::PipelineBindPoint::GRAPHICS,
                             self.get_layout(),
                             #set,
@@ -347,7 +349,7 @@ impl ToTokens for BindMethod {
                         );
                     }
                 } else {
-                    let sets = cache.descriptors.allocate(self.get_set_layouts());
+                    let sets = descriptors.allocate(self.get_set_layouts());
 
                     unsafe {
                         self.device.update_descriptor_sets(
@@ -357,7 +359,7 @@ impl ToTokens for BindMethod {
                             &[]
                         );
                         self.device.cmd_bind_descriptor_sets(
-                            cache.command_buffer,
+                            command_buffer,
                             vk::PipelineBindPoint::GRAPHICS,
                             self.get_layout(),
                             #set,
@@ -365,7 +367,7 @@ impl ToTokens for BindMethod {
                             &[],
                         );
                     }
-                    cache.descriptors.sets.insert(self.get_layout(), sets);
+                    descriptors.sets.insert((self.get_layout(), node), sets);
                 }
             }
         })
