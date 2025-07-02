@@ -12,7 +12,7 @@ impl ToTokens for Pipeline {
         let pipeline_name = format!("Pipeline{}", self.name);
         let pipeline_ident = Ident::new(&pipeline_name, Span::call_site());
 
-        let set_layout_bindings = self.get_set_layout_bindings();
+        let set_layouts = self.get_set_layouts();
 
         let vert = &self.shaders[0];
         let frag = &self.shaders[1];
@@ -61,11 +61,8 @@ impl ToTokens for Pipeline {
                 }
 
                 fn new_set_layouts(device: &ash::Device) -> Vec<vk::DescriptorSetLayout> {
-                    let set_layout_bindings = [
-                        #( #set_layout_bindings, )*
-                    ];
                     vec![
-                        Self::create_set_layout(device, &set_layout_bindings)
+                        #( { #set_layouts }, )*
                     ]
                 }
 
@@ -257,6 +254,19 @@ pub fn codegen(pipeline: Pipeline) -> TokenStream {
     pipeline.to_token_stream()
 }
 
+impl ToTokens for SetLayout {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let bindings = &self.bindings;
+
+        tokens.extend(quote! {
+            let bindings = [
+                #( #bindings, )*
+            ];
+            Self::create_set_layout(device, &bindings)
+        })
+    }
+}
+
 impl ToTokens for SetLayoutBinding {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let binding = self.binding;
@@ -312,6 +322,12 @@ impl ToTokens for BindMethod {
 
         let write_sets = self.get_write_sets();
 
+        if self.uniforms.is_empty() {
+            panic!(
+                "Failed to find uniforms for bind method `{}`",
+                bind_signature
+            );
+        }
         let set = self.uniforms[0].set;
 
         tokens.extend(quote! {
@@ -322,37 +338,28 @@ impl ToTokens for BindMethod {
                 node: Handle<Node>,
                 #( #method_params, )*
             ) {
-                if let Some(sets) = descriptors.sets.get(&(self.get_layout(), node)) {
-                    unsafe {
-                        self.device.cmd_bind_descriptor_sets(
-                            command_buffer,
-                            vk::PipelineBindPoint::GRAPHICS,
-                            self.get_layout(),
-                            #set,
-                            sets,
-                            &[],
-                        );
-                    }
-                } else {
+                let key = (self.get_layout(), node);
+                if !descriptors.sets.contains_key(&key) {
                     let sets = descriptors.allocate(self.get_set_layouts());
+                    descriptors.sets.insert(key, sets);
+                }
+                let sets = descriptors.sets.get(&key).unwrap();
 
-                    unsafe {
-                        self.device.update_descriptor_sets(
-                            &[
-                                #( #write_sets, )*
-                            ],
-                            &[]
-                        );
-                        self.device.cmd_bind_descriptor_sets(
-                            command_buffer,
-                            vk::PipelineBindPoint::GRAPHICS,
-                            self.get_layout(),
-                            #set,
-                            &sets,
-                            &[],
-                        );
-                    }
-                    descriptors.sets.insert((self.get_layout(), node), sets);
+                unsafe {
+                    self.device.update_descriptor_sets(
+                        &[
+                            #( #write_sets, )*
+                        ],
+                        &[]
+                    );
+                    self.device.cmd_bind_descriptor_sets(
+                        command_buffer,
+                        vk::PipelineBindPoint::GRAPHICS,
+                        self.get_layout(),
+                        #set,
+                        &sets[#set as usize .. (#set as usize +1) ],
+                        &[],
+                    );
                 }
             }
         })
@@ -370,7 +377,7 @@ impl ToTokens for MethodParam {
 impl ToTokens for ParamType {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let new_tokens = match self {
-            ParamType::SampledImage => quote! { Texture },
+            ParamType::SampledImage => quote! { RenderTexture },
             _ => quote! { Buffer },
         };
         tokens.extend(new_tokens);

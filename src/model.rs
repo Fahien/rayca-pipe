@@ -46,17 +46,50 @@ impl Pipeline {
         PipelineBuilder::default()
     }
 
-    pub fn get_set_layout_bindings(&self) -> Vec<SetLayoutBinding> {
+    pub fn get_set_layouts(&self) -> Vec<SetLayout> {
         let mut ret = Vec::new();
-        ret.extend(self.shaders[0].get_set_layout_bindings());
-        ret.extend(self.shaders[1].get_set_layout_bindings());
+
+        let vert = &self.shaders[0];
+        let frag = &self.shaders[1];
+
+        if vert.uniforms.is_empty() && frag.uniforms.is_empty() {
+            return ret;
+        }
+
+        // Find the number of descriptor looking into both shaders
+        let descriptor_count = vert.get_descriptor_max().max(frag.get_descriptor_max()) + 1;
+        for set in 0..descriptor_count {
+            ret.push(SetLayout::new(self.get_set_layout_bindings(set)));
+        }
+
+        ret
+    }
+
+    pub fn get_set_layout_bindings(&self, set: u32) -> Vec<SetLayoutBinding> {
+        let mut ret = Vec::new();
+        let vert = &self.shaders[0];
+        let frag = &self.shaders[1];
+        ret.extend(vert.get_set_layout_bindings(set));
+        ret.extend(frag.get_set_layout_bindings(set));
         ret
     }
 
     pub fn get_bind_methods(&self) -> Vec<BindMethod> {
         let mut ret = Vec::new();
-        ret.extend(self.shaders[0].get_bind_methods());
-        ret.extend(self.shaders[1].get_bind_methods());
+
+        let vert = &self.shaders[0];
+        let frag = &self.shaders[1];
+
+        if vert.uniforms.is_empty() && frag.uniforms.is_empty() {
+            return ret;
+        }
+
+        // Find the number of descriptor looking into both shaders
+        let descriptor_count = vert.get_descriptor_max().max(frag.get_descriptor_max()) + 1;
+        ret.resize(descriptor_count as usize, BindMethod::default());
+
+        vert.get_bind_methods(&mut ret);
+        frag.get_bind_methods(&mut ret);
         ret
     }
 
@@ -177,27 +210,28 @@ impl Shader {
         }
     }
 
-    pub fn get_set_layout_bindings(&self) -> Vec<SetLayoutBinding> {
+    pub fn get_set_layout_bindings(&self, set: u32) -> Vec<SetLayoutBinding> {
         let mut ret = Vec::new();
-        for param in &self.uniforms {
-            ret.push(param.get_set_layout_binding(self.ty));
+        for uniform in &self.uniforms {
+            if uniform.set == set {
+                ret.push(uniform.get_set_layout_binding(self.ty));
+            }
         }
         ret
     }
 
-    pub fn get_bind_methods(&self) -> Vec<BindMethod> {
-        // We need one bind method for each descriptor set
-        // so let us find the max descriptor set index
-        let mut descriptor_set_count = 0;
+    pub fn get_descriptor_max(&self) -> u32 {
+        let mut descriptor_max = 0;
         for uniform in &self.uniforms {
-            descriptor_set_count = descriptor_set_count.max(uniform.set as usize + 1);
+            descriptor_max = descriptor_max.max(uniform.set);
         }
+        descriptor_max
+    }
 
-        let mut ret = vec![BindMethod::default(); descriptor_set_count];
+    pub fn get_bind_methods(&self, methods: &mut [BindMethod]) {
         for uniform in &self.uniforms {
-            ret[uniform.set as usize].uniforms.push(uniform.clone());
+            methods[uniform.set as usize].uniforms.push(uniform.clone());
         }
-        ret
     }
 }
 
@@ -246,7 +280,6 @@ impl Uniform {
         SetLayoutBinding {
             stage,
             descriptor_type: self.param.ty.into(),
-            descriptor_set: self.set,
             binding: self.binding,
         }
     }
@@ -328,14 +361,24 @@ impl From<ParamType> for DescriptorType {
     }
 }
 
+#[derive(Default)]
+pub struct SetLayout {
+    pub bindings: Vec<SetLayoutBinding>,
+}
+
+impl SetLayout {
+    pub fn new(bindings: Vec<SetLayoutBinding>) -> SetLayout {
+        Self { bindings }
+    }
+}
+
 pub struct SetLayoutBinding {
     pub stage: ShaderType,
     pub descriptor_type: DescriptorType,
-    pub descriptor_set: u32,
     pub binding: u32,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct BindMethod {
     pub uniforms: Vec<Uniform>,
 }
@@ -496,6 +539,36 @@ mod test {
         assert_eq!(shader.uniforms[1].param.ty, ParamType::Mat4);
         assert_eq!(shader.uniforms[1].set, 1);
         assert_eq!(shader.uniforms[1].binding, 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_multiple_uniforms() -> Result<(), Box<dyn Error>> {
+        let code = r#"
+            [vk::binding(0)]
+            ConstantBuffer<float4> color;
+
+            [vk::binding(1)]
+            Texture2D tex_sampler;
+
+            [shader("fragment")]
+            float4 main(
+            ) : SV_Target {
+                return color;
+            }
+        "#;
+
+        let slang = Slang::new();
+        let vert = slang.from_source("test", code);
+        let pipeline = Pipeline::builder().name("Shader").vert(vert).build();
+        assert_eq!(pipeline.name, "Shader");
+
+        assert!(!pipeline.shaders.is_empty());
+        let shader = &pipeline.shaders[0];
+
+        assert_eq!(shader.uniforms[0].param.ty, ParamType::Vec4);
+        assert_eq!(shader.uniforms[1].param.ty, ParamType::SampledImage);
 
         Ok(())
     }

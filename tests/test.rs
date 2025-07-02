@@ -35,11 +35,12 @@ impl RenderPipeline for PipelineMain {
             node,
             buffer,
         );
-        let texture = Texture::default();
-        self.bind_tex_sampler(
+        let texture = RenderTexture::default();
+        self.bind_color_and_albedo(
             frame.cache.command_buffer,
             &mut frame.cache.descriptors,
             node,
+            buffer,
             &texture,
         );
         self.draw(&frame.cache, &model.primitives[0]);
