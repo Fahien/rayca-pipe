@@ -187,6 +187,30 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
             }
         }
 
+        // Remove samplers from uniforms and store them in another vector
+        let mut samplers = Vec::new();
+        uniforms.retain(|uniform| {
+            if uniform.param.ty == ParamType::SampledImage {
+                samplers.push(uniform.clone());
+                false
+            } else {
+                true
+            }
+        });
+
+        for sampler in samplers {
+            if uniforms
+                .iter()
+                .any(|u| u.set == sampler.set && u.binding == sampler.binding)
+            {
+                // If a uniform with the same set and binding already exists, skip this sampler
+                continue;
+            } else {
+                // Otherwise, add the sampler as a uniform
+                uniforms.push(sampler);
+            }
+        }
+
         Shader::new(ty, reflection.path.clone(), params, uniforms)
     }
 }
@@ -293,6 +317,7 @@ pub enum ParamType {
     Mat3,
     Mat4,
     SampledImage,
+    Sampler,
     Struct(usize),
 }
 
@@ -328,6 +353,7 @@ impl From<slang::ReflectionType> for ParamType {
             slang::TypeKind::ConstantBuffer => ty.get_element_type().unwrap().into(),
             slang::TypeKind::Resource => Self::SampledImage,
             slang::TypeKind::Struct => Self::Struct(0),
+            slang::TypeKind::SamplerState => Self::SampledImage,
             _ => panic!("{}:{}: unsupported slang type {:?}", file!(), line!(), kind),
         }
     }

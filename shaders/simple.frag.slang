@@ -7,6 +7,8 @@ ConstantBuffer<float4> color;
 
 [vk::binding(1, 2)]
 Texture2D albedo;
+[vk::binding(1, 2)]
+SamplerState sampler;
 
 [shader("fragment")]
 float4 main() : SV_Target {
