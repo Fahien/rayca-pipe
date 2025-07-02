@@ -20,7 +20,7 @@ impl RenderPipeline for PipelineMain {
     fn render(&self, frame: &mut Frame, model: &RenderModel, nodes: &[Handle<Node>]) {
         self.bind(&frame.cache);
 
-        let buffer = &model.vertex_buffers[0];
+        let buffer = &model.primitives[0].vertices;
         let node = nodes[0];
 
         self.bind_model(
@@ -42,7 +42,7 @@ impl RenderPipeline for PipelineMain {
             node,
             &texture,
         );
-        self.draw(&frame.cache, buffer);
+        self.draw(&frame.cache, &model.primitives[0]);
     }
 }
 

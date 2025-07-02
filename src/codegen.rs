@@ -41,6 +41,7 @@ impl ToTokens for Pipeline {
 
         tokens.extend(quote! {
             pub struct #pipeline_ident {
+                vertex_size: usize,
                 set_layouts: Vec<vk::DescriptorSetLayout>,
                 layout: vk::PipelineLayout,
                 pipeline: vk::Pipeline,
@@ -175,32 +176,8 @@ impl ToTokens for Pipeline {
                     pipeline
                 }
 
-                #[cfg(not(target_os = "android"))]
                 pub fn new<V: VertexInput>(
-                    pass: &Pass,
-                ) -> Self {
-                    let name = String::from(#pipeline_name);
-
-                    let device = pass.device.clone();
-
-                    let set_layouts = Self::new_set_layouts(&device);
-                    let layout = Self::new_layout(&device, &set_layouts);
-
-                    let (vertex, fragment) = ShaderModule::create_shaders(&device, #vert_path, #frag_path);
-
-                    let pipeline = Self::new_impl::<V>(layout, &vertex, &fragment, pass.render);
-
-                    Self {
-                        set_layouts,
-                        layout,
-                        pipeline,
-                        device,
-                        name,
-                    }
-                }
-
-                #[cfg(target_os = "android")]
-                pub fn new<V: VertexInput>(
+                    #[cfg(target_os = "android")]
                     android_app: &AndroidApp,
                     pass: &Pass,
                 ) -> Self {
@@ -211,11 +188,15 @@ impl ToTokens for Pipeline {
                     let set_layouts = Self::new_set_layouts(&device);
                     let layout = Self::new_layout(&device, &set_layouts);
 
+                    #[cfg(target_os = "android")]
                     let (vertex, fragment) = ShaderModule::create_shaders(android_app, &device, #vert_path, #frag_path);
+                    #[cfg(not(target_os = "android"))]
+                    let (vertex, fragment) = ShaderModule::create_shaders(&device, #vert_path, #frag_path);
 
                     let pipeline = Self::new_impl::<V>(layout, &vertex, &fragment, pass.render);
 
                     Self {
+                        vertex_size: std::mem::size_of::<V>(),
                         set_layouts,
                         layout,
                         pipeline,
@@ -250,6 +231,10 @@ impl ToTokens for Pipeline {
 
                 fn get_device(&self) -> &ash::Device {
                     &self.device
+                }
+
+                fn get_vertex_size(&self) -> usize {
+                    self.vertex_size
                 }
             }
 
