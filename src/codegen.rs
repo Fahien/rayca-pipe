@@ -97,13 +97,6 @@ impl ToTokens for Pipeline {
                         .topology(V::get_topology())
                         .primitive_restart_enable(false);
 
-                    let depth_stencil = vk::PipelineDepthStencilStateCreateInfo::default()
-                        .depth_test_enable(true)
-                        .depth_write_enable(true)
-                        .depth_compare_op(vk::CompareOp::GREATER)
-                        .depth_bounds_test_enable(false)
-                        .stencil_test_enable(false);
-
                     let rasterization = vk::PipelineRasterizationStateCreateInfo::default()
                         .line_width(1.0)
                         .depth_clamp_enable(false)
@@ -153,14 +146,16 @@ impl ToTokens for Pipeline {
                         .logic_op_enable(false)
                         .attachments(&blend_attachments);
 
+                    let depth_state = V::get_depth_state();
+
                     let create_info = vk::GraphicsPipelineCreateInfo::default()
                         .stages(&stages)
                         .layout(layout)
                         .render_pass(pass)
-                        .subpass(0)
+                        .subpass(V::get_subpass())
                         .vertex_input_state(&vertex_input)
                         .input_assembly_state(&input_assembly)
-                        .depth_stencil_state(&depth_stencil)
+                        .depth_stencil_state(&depth_state)
                         .rasterization_state(&rasterization)
                         .viewport_state(&view)
                         .multisample_state(&multisample)
