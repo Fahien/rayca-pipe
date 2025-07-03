@@ -31,20 +31,20 @@ impl RenderPipeline for PipelineMain {
         let key = DescriptorKey::default();
 
         self.bind_model(
-            frame.cache.command_buffer,
+            &frame.cache.command_buffer,
             &mut frame.cache.descriptors,
             key,
             buffer,
         );
         self.bind_camera(
-            frame.cache.command_buffer,
+            &frame.cache.command_buffer,
             &mut frame.cache.descriptors,
             key,
             buffer,
         );
         let texture = RenderTexture::default();
         self.bind_color_and_albedo(
-            frame.cache.command_buffer,
+            &frame.cache.command_buffer,
             &mut frame.cache.descriptors,
             key,
             buffer,

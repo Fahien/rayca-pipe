@@ -334,7 +334,7 @@ impl ToTokens for BindMethod {
         tokens.extend(quote! {
             pub fn #bind_signature(
                 &self,
-                command_buffer: vk::CommandBuffer,
+                command_buffer: &CommandBuffer,
                 descriptors: &mut Descriptors,
                 key: DescriptorKey,
                 #( #method_params, )*
@@ -354,16 +354,7 @@ impl ToTokens for BindMethod {
                     }
                     DescriptorEntry::Get(sets) => sets,
                 };
-                unsafe {
-                    self.device.cmd_bind_descriptor_sets(
-                        command_buffer,
-                        vk::PipelineBindPoint::GRAPHICS,
-                        self.get_layout(),
-                        #set,
-                        sets,
-                        &[],
-                    );
-                }
+                command_buffer.bind_descriptor_sets(self.get_layout(), sets, #set);
             }
         })
     }
