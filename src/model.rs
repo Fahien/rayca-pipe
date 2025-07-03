@@ -211,6 +211,7 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
             }
         }
 
+        uniforms.sort_by_key(|uniform| uniform.binding);
         Shader::new(ty, reflection.path.clone(), params, uniforms)
     }
 }

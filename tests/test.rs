@@ -17,7 +17,13 @@ pipewriter!(
 );
 
 impl RenderPipeline for PipelineMain {
-    fn render(&self, frame: &mut Frame, model: &RenderModel, _nodes: &[Handle<Node>]) {
+    fn render(
+        &self,
+        frame: &mut Frame,
+        model: &RenderModel,
+        _camera_nodes: &[Handle<Node>],
+        _nodes: &[Handle<Node>],
+    ) {
         self.bind(&frame.cache);
 
         let buffer = &model.primitives[0].vertices;
@@ -48,7 +54,14 @@ impl RenderPipeline for PipelineMain {
     }
 }
 impl RenderPipeline for PipelineSecondary {
-    fn render(&self, _frame: &mut Frame, _model: &RenderModel, _nodes: &[Handle<Node>]) {}
+    fn render(
+        &self,
+        _frame: &mut Frame,
+        _model: &RenderModel,
+        _camera_nodes: &[Handle<Node>],
+        _nodes: &[Handle<Node>],
+    ) {
+    }
 }
 
 #[test]
