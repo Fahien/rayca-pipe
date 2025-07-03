@@ -10,7 +10,10 @@ Texture2D albedo;
 [vk::binding(1, 2)]
 SamplerState sampler;
 
+[[vk::push_constant]]
+float4 ambient;
+
 [shader("fragment")]
 float4 main() : SV_Target {
-    return color;
+    return ambient * color;
 }

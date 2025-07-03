@@ -93,6 +93,17 @@ impl Pipeline {
         ret
     }
 
+    pub fn get_push_ranges(&self) -> Vec<PushRange> {
+        let mut ret = Vec::new();
+        for param in &self.shaders[0].constants {
+            ret.push(PushRange::new(param.ty, ShaderType::Vertex));
+        }
+        for param in &self.shaders[1].constants {
+            ret.push(PushRange::new(param.ty, ShaderType::Fragment));
+        }
+        ret
+    }
+
     pub fn new<S: Into<String>>(name: S, reflections: Vec<ShaderReflection>) -> Self {
         let mut shaders = Vec::new();
         assert!(!reflections.is_empty());
@@ -120,6 +131,7 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
 
         let mut params = Vec::default();
         let mut uniforms = Vec::default();
+        let mut constants = Vec::default();
 
         let parameter_count = entry_point.get_parameter_count();
         for i in 0..parameter_count {
@@ -139,6 +151,7 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
 
             match category {
                 slang::ParameterCategory::VaryingInput => params.push(param),
+                slang::ParameterCategory::PushConstantBuffer => constants.push(param),
                 slang::ParameterCategory::Uniform | slang::ParameterCategory::Subpass => {
                     let binding = var_layout.get_binding_index();
                     let set = var_layout.get_binding_space();
@@ -171,6 +184,7 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
             };
 
             match category {
+                slang::ParameterCategory::PushConstantBuffer => constants.push(param),
                 slang::ParameterCategory::DescriptorTableSlot
                 | slang::ParameterCategory::Uniform
                 | slang::ParameterCategory::Mixed => {
@@ -213,7 +227,7 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
         }
 
         uniforms.sort_by_key(|uniform| uniform.binding);
-        Shader::new(ty, reflection.path.clone(), params, uniforms)
+        Shader::new(ty, reflection.path.clone(), params, uniforms, constants)
     }
 }
 
@@ -224,15 +238,23 @@ pub struct Shader {
     pub path: PathBuf,
     pub params: Vec<Param>,
     pub uniforms: Vec<Uniform>,
+    pub constants: Vec<Param>,
 }
 
 impl Shader {
-    pub fn new(ty: ShaderType, path: PathBuf, params: Vec<Param>, uniforms: Vec<Uniform>) -> Self {
+    pub fn new(
+        ty: ShaderType,
+        path: PathBuf,
+        params: Vec<Param>,
+        uniforms: Vec<Uniform>,
+        constants: Vec<Param>,
+    ) -> Self {
         Self {
             ty,
             path,
             params,
             uniforms,
+            constants,
         }
     }
 
@@ -461,6 +483,19 @@ pub struct WriteSet {
 pub struct WriteSetInfo {
     pub name: String,
     pub ty: ParamType,
+}
+
+/// Push constant range for constructing the pipeline layout
+#[derive(Clone, Debug)]
+pub struct PushRange {
+    pub ty: ParamType,
+    pub stage: ShaderType,
+}
+
+impl PushRange {
+    pub fn new(ty: ParamType, stage: ShaderType) -> Self {
+        Self { ty, stage }
+    }
 }
 
 #[cfg(test)]

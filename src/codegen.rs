@@ -12,8 +12,6 @@ impl ToTokens for Pipeline {
         let pipeline_name = format!("Pipeline{}", self.name);
         let pipeline_ident = Ident::new(&pipeline_name, Span::call_site());
 
-        let set_layouts = self.get_set_layouts();
-
         let vert = &self.shaders[0];
         let frag = &self.shaders[1];
 
@@ -37,6 +35,8 @@ impl ToTokens for Pipeline {
             );
         }
 
+        let push_ranges = self.get_push_ranges();
+        let set_layouts = self.get_set_layouts();
         let bind_methods = self.get_bind_methods();
 
         tokens.extend(quote! {
@@ -67,8 +67,16 @@ impl ToTokens for Pipeline {
                 }
 
                 fn new_layout(device: &ash::Device, set_layouts: &[vk::DescriptorSetLayout]) -> vk::PipelineLayout {
-                    let create_info = vk::PipelineLayoutCreateInfo::default()
+                    let mut create_info = vk::PipelineLayoutCreateInfo::default()
                         .set_layouts(set_layouts);
+
+                    let push_ranges = [
+                        #( #push_ranges, )*
+                    ];
+                    if !push_ranges.is_empty() {
+                        create_info = create_info.push_constant_ranges(&push_ranges);
+                    }
+
                     let layout = unsafe { device.create_pipeline_layout(&create_info, None) };
                     layout.expect("Failed to create Vulkan pipeline layout")
                 }
@@ -422,5 +430,18 @@ impl ToTokens for WriteSetInfo {
                 ]
             });
         }
+    }
+}
+
+impl ToTokens for PushRange {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let stage = self.stage;
+        let range = self.ty.get_size();
+        tokens.extend(quote! {
+            vk::PushConstantRange::default()
+                .offset(0)
+                .stage_flags(#stage)
+                .size(#range as u32)
+        })
     }
 }
