@@ -123,8 +123,8 @@ impl ToTokens for Pipeline {
                             .y(0.0)
                             .width(width as f32)
                             .height(height as f32)
-                            .min_depth(0.0)
-                            .max_depth(1.0)
+                            .min_depth(1.0)
+                            .max_depth(0.0)
                     ];
 
                     let scissors = [
