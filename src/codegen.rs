@@ -116,8 +116,8 @@ impl ToTokens for Pipeline {
                         .depth_bias_enable(false);
 
                     // Pass as input? Or just use a default value.
-                    let width = 480;
-                    let height = 480;
+                    let width = 960;
+                    let height = 960;
 
                     let viewports = [
                         vk::Viewport::default()
@@ -145,15 +145,18 @@ impl ToTokens for Pipeline {
                         .alpha_to_coverage_enable(false)
                         .alpha_to_one_enable(false);
 
-                    let blend_attachments = [
-                        vk::PipelineColorBlendAttachmentState::default()
-                            .blend_enable(false)
-                            .color_write_mask(vk::ColorComponentFlags::RGBA)
-                    ];
+                    let blend_attachments = V::get_color_blend();
 
                     let blend = vk::PipelineColorBlendStateCreateInfo::default()
                         .logic_op_enable(false)
                         .attachments(&blend_attachments);
+
+                    let states = [
+                        vk::DynamicState::VIEWPORT,
+                        vk::DynamicState::SCISSOR
+                    ];
+                    let dynamic_states = vk::PipelineDynamicStateCreateInfo::default()
+                        .dynamic_states(&states);
 
                     let depth_state = V::get_depth_state();
 
@@ -168,7 +171,8 @@ impl ToTokens for Pipeline {
                         .rasterization_state(&rasterization)
                         .viewport_state(&view)
                         .multisample_state(&multisample)
-                        .color_blend_state(&blend);
+                        .color_blend_state(&blend)
+                        .dynamic_state(&dynamic_states);
 
                     let pipelines = unsafe { vert_module.device.create_graphics_pipelines(vk::PipelineCache::null(), &[create_info], None) };
                     let mut pipelines = pipelines.expect("Failed to create Vulkan graphics pipeline");
