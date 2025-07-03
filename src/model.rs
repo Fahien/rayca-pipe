@@ -139,7 +139,7 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
 
             match category {
                 slang::ParameterCategory::VaryingInput => params.push(param),
-                slang::ParameterCategory::Uniform => {
+                slang::ParameterCategory::Uniform | slang::ParameterCategory::Subpass => {
                     let binding = var_layout.get_binding_index();
                     let set = var_layout.get_binding_space();
                     let uniform = Uniform::new(param, set, binding);
@@ -172,7 +172,8 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
 
             match category {
                 slang::ParameterCategory::DescriptorTableSlot
-                | slang::ParameterCategory::Uniform => {
+                | slang::ParameterCategory::Uniform
+                | slang::ParameterCategory::Mixed => {
                     let binding = var_layout.get_binding_index();
                     let set = var_layout.get_binding_space();
                     let uniform = Uniform::new(param, set, binding);
@@ -318,6 +319,7 @@ pub enum ParamType {
     Mat3,
     Mat4,
     SampledImage,
+    Image,
     Sampler,
     Struct(usize),
 }
@@ -377,12 +379,14 @@ impl ParamType {
 pub enum DescriptorType {
     Uniform,
     CombinedSampler,
+    InputAttachment,
 }
 
 impl From<ParamType> for DescriptorType {
     fn from(param: ParamType) -> Self {
         match param {
             ParamType::SampledImage => DescriptorType::CombinedSampler,
+            ParamType::Image => DescriptorType::InputAttachment,
             _ => DescriptorType::Uniform,
         }
     }
@@ -594,6 +598,27 @@ mod test {
 
         assert_eq!(shader.uniforms[0].param.ty, ParamType::Vec4);
         assert_eq!(shader.uniforms[1].param.ty, ParamType::SampledImage);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_input_attachment() -> Result<(), Box<dyn Error>> {
+        let code = r#"
+            [[vk::input_attachment_index(0)]] SubpassInput scene_color;
+            [shader("fragment")]
+            float4 main() : SV_Target {
+                return scene_color.SubpassLoad();
+            }
+        "#;
+
+        let slang = Slang::new();
+        let vert = slang.from_source("test", code);
+        let pipeline = Pipeline::builder().name("Shader").vert(vert).build();
+        assert_eq!(pipeline.name, "Shader");
+
+        assert!(!pipeline.shaders.is_empty());
+        let shader = &pipeline.shaders[0];
 
         Ok(())
     }

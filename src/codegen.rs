@@ -291,6 +291,9 @@ impl ToTokens for DescriptorType {
             DescriptorType::CombinedSampler => {
                 quote! { vk::DescriptorType::COMBINED_IMAGE_SAMPLER }
             }
+            DescriptorType::InputAttachment => {
+                quote! { vk::DescriptorType::INPUT_ATTACHMENT }
+            }
         };
         tokens.extend(new_tokens)
     }
