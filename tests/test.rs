@@ -51,6 +51,16 @@ impl RenderPipeline for PipelineMain {
             buffer,
             &texture,
         );
+
+        self.bind_scene_color(
+            &frame.cache.command_buffer,
+            &mut frame.cache.descriptors,
+            key,
+            &texture,
+        );
+
+        self.push_ambient(&frame.cache.command_buffer, &Vec4::ZERO);
+
         self.draw(&frame.cache, &model.primitives[0]);
     }
 }

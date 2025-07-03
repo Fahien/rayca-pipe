@@ -104,6 +104,18 @@ impl Pipeline {
         ret
     }
 
+    pub fn get_push_methods(&self) -> Vec<PushMethod> {
+        let mut ret = Vec::new();
+
+        for shader in &self.shaders {
+            for param in &shader.constants {
+                ret.push(PushMethod::new(param.name.clone(), param.ty, shader.ty));
+            }
+        }
+
+        ret
+    }
+
     pub fn new<S: Into<String>>(name: S, reflections: Vec<ShaderReflection>) -> Self {
         let mut shaders = Vec::new();
         assert!(!reflections.is_empty());
@@ -155,7 +167,7 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
                 slang::ParameterCategory::Uniform | slang::ParameterCategory::Subpass => {
                     let binding = var_layout.get_binding_index();
                     let set = var_layout.get_binding_space();
-                    let uniform = Uniform::new(param, set, binding);
+                    let uniform = Uniform::new(param, set, binding, 0);
                     uniforms.push(uniform)
                 }
                 _ => panic!(
@@ -186,12 +198,37 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
             match category {
                 slang::ParameterCategory::PushConstantBuffer => constants.push(param),
                 slang::ParameterCategory::DescriptorTableSlot
-                | slang::ParameterCategory::Uniform
-                | slang::ParameterCategory::Mixed => {
+                | slang::ParameterCategory::Uniform => {
                     let binding = var_layout.get_binding_index();
                     let set = var_layout.get_binding_space();
-                    let uniform = Uniform::new(param, set, binding);
+                    let uniform = Uniform::new(param, set, binding, 0);
                     uniforms.push(uniform)
+                }
+                slang::ParameterCategory::Mixed => {
+                    let mut set = 0;
+                    let mut binding = 0;
+                    let mut input_attachment_index = 0;
+
+                    for i in 0..type_layout.get_category_count() {
+                        let sub_category = type_layout.get_category_by_index(i);
+                        match sub_category {
+                            slang::ParameterCategory::DescriptorTableSlot => {
+                                binding = var_layout.get_offset(sub_category) as u32;
+                                set = var_layout.get_binding_space_for_category(sub_category);
+                            }
+                            slang::ParameterCategory::Subpass => {
+                                input_attachment_index = var_layout.get_offset(sub_category) as u32;
+                            }
+                            _ => panic!(
+                                "{}:{}: unsupported sub category {:?}",
+                                file!(),
+                                line!(),
+                                sub_category
+                            ),
+                        }
+                    }
+
+                    uniforms.push(Uniform::new(param, set, binding, input_attachment_index))
                 }
                 _ => panic!(
                     "{}:{}: Unimplemented category `{:?}`",
@@ -313,14 +350,16 @@ pub struct Uniform {
     pub param: Param,
     pub set: u32,
     binding: u32,
+    input_attachment_index: u32,
 }
 
 impl Uniform {
-    pub fn new(param: Param, set: u32, binding: u32) -> Self {
+    pub fn new(param: Param, set: u32, binding: u32, input_attachment_index: u32) -> Self {
         Self {
             param,
             set,
             binding,
+            input_attachment_index,
         }
     }
 
@@ -377,7 +416,7 @@ impl From<slang::ReflectionType> for ParamType {
             },
             slang::TypeKind::ConstantBuffer => ty.get_element_type().unwrap().into(),
             slang::TypeKind::Resource => Self::SampledImage,
-            slang::TypeKind::Struct => Self::Struct(0),
+            slang::TypeKind::Struct => Self::Image,
             slang::TypeKind::SamplerState => Self::SampledImage,
             _ => panic!("{}:{}: unsupported slang type {:?}", file!(), line!(), kind),
         }
@@ -495,6 +534,35 @@ pub struct PushRange {
 impl PushRange {
     pub fn new(ty: ParamType, stage: ShaderType) -> Self {
         Self { ty, stage }
+    }
+}
+
+/// Methods for pushing constants
+#[derive(Clone, Debug)]
+pub struct PushMethod {
+    pub name: String,
+    pub ty: ParamType,
+    pub stage: ShaderType,
+}
+
+impl PushMethod {
+    pub fn new(name: String, ty: ParamType, stage: ShaderType) -> Self {
+        Self { name, ty, stage }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub enum VkrType {
+    Buffer,
+    Texture,
+}
+
+impl From<ParamType> for VkrType {
+    fn from(ty: ParamType) -> Self {
+        match ty {
+            ParamType::SampledImage | ParamType::Image => Self::Texture,
+            _ => Self::Buffer,
+        }
     }
 }
 
@@ -640,7 +708,9 @@ mod test {
     #[test]
     fn parse_input_attachment() -> Result<(), Box<dyn Error>> {
         let code = r#"
-            [[vk::input_attachment_index(0)]] SubpassInput scene_color;
+            layout (input_attachment_index = 1, set = 2, binding = 3)
+            SubpassInput scene_color;
+
             [shader("fragment")]
             float4 main() : SV_Target {
                 return scene_color.SubpassLoad();
@@ -654,6 +724,33 @@ mod test {
 
         assert!(!pipeline.shaders.is_empty());
         let shader = &pipeline.shaders[0];
+
+        assert_eq!(shader.uniforms[0].param.ty, ParamType::Image);
+        assert_eq!(shader.uniforms[0].input_attachment_index, 1);
+        assert_eq!(shader.uniforms[0].set, 2);
+        assert_eq!(shader.uniforms[0].binding, 3);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_constants() -> Result<(), Box<dyn Error>> {
+        let code = r#"
+            [vk::push_constant] float4 color;
+            [shader("fragment")]
+            float4 main() : SV_Target {
+                return color;
+            }
+        "#;
+
+        let slang = Slang::new();
+        let vert = slang.from_source("test", code);
+        let pipeline = Pipeline::builder().name("Shader").vert(vert).build();
+        assert_eq!(pipeline.name, "Shader");
+
+        assert!(!pipeline.shaders.is_empty());
+        let shader = &pipeline.shaders[0];
+        assert_eq!(shader.constants[0].ty, ParamType::Vec4);
 
         Ok(())
     }

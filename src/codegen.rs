@@ -38,6 +38,7 @@ impl ToTokens for Pipeline {
         let push_ranges = self.get_push_ranges();
         let set_layouts = self.get_set_layouts();
         let bind_methods = self.get_bind_methods();
+        let push_methods = self.get_push_methods();
 
         tokens.extend(quote! {
             pub struct #pipeline_ident {
@@ -206,6 +207,8 @@ impl ToTokens for Pipeline {
                 }
 
                 #( #bind_methods )*
+
+                #( #push_methods )*
             }
 
             impl Pipeline for #pipeline_ident {
@@ -369,7 +372,7 @@ impl ToTokens for BindMethod {
 impl ToTokens for MethodParam {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let name = Ident::new(&self.name, Span::call_site());
-        let ty = self.ty;
+        let ty: VkrType = self.ty.into();
         tokens.extend(quote! { #name: &#ty })
     }
 }
@@ -377,8 +380,22 @@ impl ToTokens for MethodParam {
 impl ToTokens for ParamType {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let new_tokens = match self {
-            ParamType::SampledImage => quote! { RenderTexture },
-            _ => quote! { Buffer },
+            ParamType::Vec2 => quote! { Vec2 },
+            ParamType::Vec3 => quote! { Vec3 },
+            ParamType::Vec4 => quote! { Vec4 },
+            ParamType::Mat3 => quote! { Mat3 },
+            ParamType::Mat4 => quote! { Mat4 },
+            _ => panic!("Can not use param type on CPU: `{:?}`", self),
+        };
+        tokens.extend(new_tokens);
+    }
+}
+
+impl ToTokens for VkrType {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let new_tokens = match self {
+            VkrType::Buffer => quote! { Buffer },
+            VkrType::Texture => quote! { RenderTexture },
         };
         tokens.extend(new_tokens);
     }
@@ -397,10 +414,11 @@ impl ToTokens for WriteSet {
                 .descriptor_type(#descriptor_type)
         });
 
-        if self.info.ty == ParamType::SampledImage {
-            tokens.extend(quote! { .image_info(&#info) });
-        } else {
-            tokens.extend(quote! { .buffer_info(&#info) });
+        match self.info.ty {
+            ParamType::Image | ParamType::SampledImage => {
+                tokens.extend(quote! { .image_info(&#info) })
+            }
+            _ => tokens.extend(quote! { .buffer_info(&#info) }),
         }
         tokens.extend(quote! {});
     }
@@ -411,24 +429,25 @@ impl ToTokens for WriteSetInfo {
         let name = Ident::new(&self.name, Span::call_site());
         let ty = self.ty;
 
-        if ty == ParamType::SampledImage {
-            tokens.extend(quote! {
+        match ty {
+            ParamType::Image | ParamType::SampledImage => tokens.extend(quote! {
                 [
                     vk::DescriptorImageInfo::default()
                         .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
                         .image_view(#name.view)
                         .sampler(#name.sampler)
                 ]
-            });
-        } else {
-            let size = ty.get_size();
-            tokens.extend(quote! {
-                [
-                    vk::DescriptorBufferInfo::default()
-                        .range(#size as vk::DeviceSize)
-                        .buffer(#name.buffer)
-                ]
-            });
+            }),
+            _ => {
+                let size = ty.get_size();
+                tokens.extend(quote! {
+                    [
+                        vk::DescriptorBufferInfo::default()
+                            .range(#size as vk::DeviceSize)
+                            .buffer(#name.buffer)
+                    ]
+                });
+            }
         }
     }
 }
@@ -442,6 +461,31 @@ impl ToTokens for PushRange {
                 .offset(0)
                 .stage_flags(#stage)
                 .size(#range as u32)
+        })
+    }
+}
+
+impl ToTokens for PushMethod {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let push_signature = format_ident!("push_{}", self.name);
+        let arg_name = Ident::new(&self.name, Span::call_site());
+        let arg_type = &self.ty;
+        let stage = self.stage;
+        tokens.extend(quote! {
+            pub fn #push_signature(&self, command_buffer: &CommandBuffer, #arg_name: &#arg_type) {
+                let bytes = unsafe {
+                    std::slice::from_raw_parts(
+                        #arg_name as *const #arg_type as *const u8,
+                        std::mem::size_of::<#arg_type>(),
+                    )
+                };
+                command_buffer.push_constants(
+                    self,
+                    #stage,
+                    0, //offset,
+                    bytes
+                );
+            }
         })
     }
 }

@@ -1207,7 +1207,7 @@ dependencies = [
 [[package]]
 name = "rayca-math"
 version = "0.1.0"
-source = "git+https://github.com/Fahien/rayca-math#bd1c7600137404b90a2dcb115e89121bea980669"
+source = "git+https://github.com/Fahien/rayca-math#bfa55b1fbe1ee6c1c51f4a9416b371608506c379"
 dependencies = [
  "num-traits",
  "rand",

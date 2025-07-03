@@ -7,13 +7,15 @@ ConstantBuffer<float4> color;
 
 [vk::binding(1, 2)]
 Texture2D albedo;
-[vk::binding(1, 2)]
-SamplerState sampler;
 
-[[vk::push_constant]]
+[vk::binding(0, 3)]
+[vk::input_attachment_index(0)]
+SubpassInput scene_color;
+
+[vk::push_constant]
 float4 ambient;
 
 [shader("fragment")]
 float4 main() : SV_Target {
-    return ambient * color;
+    return ambient * color * scene_color.SubpassLoad();
 }
