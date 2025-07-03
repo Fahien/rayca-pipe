@@ -2,20 +2,20 @@
 // Author: Antonio Caggiano <info@antoniocaggiano.eu>
 // SPDX-License-Identifier: MIT
 
-struct Model {
+struct Model
+{
     float4x4 transform;
 }
 
-struct Camera {
-    float4x4 view;
-    float4x4 proj;
-}
-
 ConstantBuffer<Model> model;
+
 [vk::binding(0, 1)]
-ConstantBuffer<Camera> camera;
+ConstantBuffer<float4x4> view;
+[vk::binding(1, 1)]
+ConstantBuffer<float4x4> proj;
 
 [shader("vertex")]
-float4 main(float3 pos) : SV_Position {
+float4 main(float3 pos) : SV_Position
+{
     return float4(pos, 1.0);
 }

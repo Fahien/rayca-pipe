@@ -36,10 +36,11 @@ impl RenderPipeline for PipelineMain {
             key,
             buffer,
         );
-        self.bind_camera(
+        self.bind_view_and_proj(
             &frame.cache.command_buffer,
             &mut frame.cache.descriptors,
             key,
+            buffer,
             buffer,
         );
         let texture = RenderTexture::default();
