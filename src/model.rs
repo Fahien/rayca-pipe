@@ -425,7 +425,6 @@ impl BindMethod {
         let mut ret = Vec::new();
         for uniform in &self.uniforms {
             ret.push(WriteSet {
-                descriptor_set: uniform.set,
                 binding: uniform.binding,
                 descriptor_type: uniform.param.ty.into(),
                 info: WriteSetInfo {
@@ -446,7 +445,6 @@ pub struct MethodParam {
 
 #[derive(Clone, Debug)]
 pub struct WriteSet {
-    pub descriptor_set: u32,
     pub binding: u32,
     pub descriptor_type: DescriptorType,
     pub info: WriteSetInfo,

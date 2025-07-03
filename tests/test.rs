@@ -17,36 +17,36 @@ pipewriter!(
 );
 
 impl RenderPipeline for PipelineMain {
-    fn render(&self, frame: &mut Frame, model: &RenderModel, nodes: &[Handle<Node>]) {
+    fn render(&self, frame: &mut Frame, model: &RenderModel, _nodes: &[Handle<Node>]) {
         self.bind(&frame.cache);
 
         let buffer = &model.primitives[0].vertices;
-        let node = nodes[0];
+
+        let key = DescriptorKey::default();
 
         self.bind_model(
             frame.cache.command_buffer,
             &mut frame.cache.descriptors,
-            node,
+            key,
             buffer,
         );
         self.bind_camera(
             frame.cache.command_buffer,
             &mut frame.cache.descriptors,
-            node,
+            key,
             buffer,
         );
         let texture = RenderTexture::default();
         self.bind_color_and_albedo(
             frame.cache.command_buffer,
             &mut frame.cache.descriptors,
-            node,
+            key,
             buffer,
             &texture,
         );
         self.draw(&frame.cache, &model.primitives[0]);
     }
 }
-
 impl RenderPipeline for PipelineSecondary {
     fn render(&self, _frame: &mut Frame, _model: &RenderModel, _nodes: &[Handle<Node>]) {}
 }

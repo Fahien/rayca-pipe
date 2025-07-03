@@ -62,7 +62,7 @@ impl ToTokens for Pipeline {
 
                 fn new_set_layouts(device: &ash::Device) -> Vec<vk::DescriptorSetLayout> {
                     vec![
-                        #( { #set_layouts }, )*
+                        #( #set_layouts, )*
                     ]
                 }
 
@@ -257,12 +257,13 @@ pub fn codegen(pipeline: Pipeline) -> TokenStream {
 impl ToTokens for SetLayout {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let bindings = &self.bindings;
-
         tokens.extend(quote! {
-            let bindings = [
-                #( #bindings, )*
-            ];
-            Self::create_set_layout(device, &bindings)
+            Self::create_set_layout(
+                device,
+                &[
+                    #( #bindings, )*
+                ]
+            )
         })
     }
 }
@@ -335,29 +336,31 @@ impl ToTokens for BindMethod {
                 &self,
                 command_buffer: vk::CommandBuffer,
                 descriptors: &mut Descriptors,
-                node: Handle<Node>,
+                key: DescriptorKey,
                 #( #method_params, )*
             ) {
-                let key = (self.get_layout(), node);
-                if !descriptors.sets.contains_key(&key) {
-                    let sets = descriptors.allocate(self.get_set_layouts());
-                    descriptors.sets.insert(key, sets);
-                }
-                let sets = descriptors.sets.get(&key).unwrap();
-
+                let set_layouts = &[self.get_set_layouts()[#set as usize]];
+                let sets = match descriptors.get_or_create(key, set_layouts) {
+                    DescriptorEntry::Created(sets) => {
+                            unsafe {
+                                self.device.update_descriptor_sets(
+                                    &[
+                                        #( #write_sets, )*
+                                    ],
+                                    &[]
+                                );
+                            }
+                            sets
+                    }
+                    DescriptorEntry::Get(sets) => sets,
+                };
                 unsafe {
-                    self.device.update_descriptor_sets(
-                        &[
-                            #( #write_sets, )*
-                        ],
-                        &[]
-                    );
                     self.device.cmd_bind_descriptor_sets(
                         command_buffer,
                         vk::PipelineBindPoint::GRAPHICS,
                         self.get_layout(),
                         #set,
-                        &sets[#set as usize .. (#set as usize +1) ],
+                        sets,
                         &[],
                     );
                 }
@@ -386,13 +389,12 @@ impl ToTokens for ParamType {
 
 impl ToTokens for WriteSet {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let set = self.descriptor_set;
         let binding = self.binding;
         let descriptor_type = self.descriptor_type;
         let info = &self.info;
         tokens.extend(quote! {
             vk::WriteDescriptorSet::default()
-                .dst_set(sets[#set as usize])
+                .dst_set(sets[0])
                 .dst_binding(#binding)
                 .dst_array_element(0)
                 .descriptor_type(#descriptor_type)
