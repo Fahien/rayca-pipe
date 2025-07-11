@@ -119,15 +119,14 @@ impl ToTokens for Pipeline {
                     let width = 960;
                     let height = 960;
 
-                    let viewports = [
-                        vk::Viewport::default()
-                            .x(0.0)
-                            .y(0.0)
-                            .width(width as f32)
-                            .height(height as f32)
-                            .min_depth(1.0)
-                            .max_depth(0.0)
-                    ];
+                    let viewports = [vk::Viewport::default()
+                        .x(0.0)
+                        .y(height as f32)
+                        .width(width as f32)
+                        .height(-(height as f32))
+                        // Reversed Z-buffering
+                        .min_depth(1.0)
+                        .max_depth(0.0)];
 
                     let scissors = [
                         vk::Rect2D::default()
