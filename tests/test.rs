@@ -20,10 +20,12 @@ impl RenderPipeline for PipelineMain {
     fn render(
         &self,
         frame: &mut Frame,
-        model: &RenderModel,
+        model: Option<&RenderModel>,
         _camera_nodes: &[Handle<Node>],
         _nodes: &[Handle<Node>],
     ) {
+        let model = model.as_ref().unwrap();
+
         self.bind(&frame.cache);
 
         let buffer = &model.primitives[0].vertices;
@@ -68,7 +70,7 @@ impl RenderPipeline for PipelineSecondary {
     fn render(
         &self,
         _frame: &mut Frame,
-        _model: &RenderModel,
+        _model: Option<&RenderModel>,
         _camera_nodes: &[Handle<Node>],
         _nodes: &[Handle<Node>],
     ) {
