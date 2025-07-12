@@ -388,7 +388,8 @@ impl ToTokens for ParamType {
             ParamType::Vec4 => quote! { Vec4 },
             ParamType::Mat3 => quote! { Mat3 },
             ParamType::Mat4 => quote! { Mat4 },
-            _ => panic!("Can not use param type on CPU: `{:?}`", self),
+            ParamType::Struct(_) => quote! { &[u8] },
+            _ => panic!("{}:{}: Can not use param type on CPU: `{:?}`", file!(), line!(), self),
         };
         tokens.extend(new_tokens);
     }

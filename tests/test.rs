@@ -61,11 +61,12 @@ impl RenderPipeline for PipelineMain {
             &texture,
         );
 
-        self.push_ambient(&frame.cache.command_buffer, &Vec4::ZERO);
+        self.push_push(&frame.cache.command_buffer, &Vec4::ZERO.as_bytes());
 
         self.draw(&frame.cache, &model.primitives[0]);
     }
 }
+
 impl RenderPipeline for PipelineSecondary {
     fn render(
         &self,
