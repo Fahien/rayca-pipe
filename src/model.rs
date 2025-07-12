@@ -156,17 +156,22 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
             let type_layout = var_layout.get_type_layout().unwrap();
             let category = type_layout.get_parameter_category();
 
-            let param = Param {
-                name: name.into(),
-                ty: ty.into(),
-            };
+            // Guess param type for the moment
+            let param_type = ParamType::from_type(ty);
 
             match category {
-                slang::ParameterCategory::VaryingInput => params.push(param),
-                slang::ParameterCategory::PushConstantBuffer => constants.push(param),
+                slang::ParameterCategory::VaryingInput => {
+                    let param = Param::new(name.into(), param_type);
+                    params.push(param);
+                }
+                slang::ParameterCategory::PushConstantBuffer => {
+                    let param = Param::new(name.into(), param_type);
+                    constants.push(param);
+                }
                 slang::ParameterCategory::Uniform | slang::ParameterCategory::Subpass => {
                     let binding = var_layout.get_binding_index();
                     let set = var_layout.get_binding_space();
+                    let param = Param::new(name.into(), param_type);
                     let uniform = Uniform::new(param, set, binding, 0);
                     uniforms.push(uniform)
                 }
@@ -190,17 +195,19 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
             let type_layout = var_layout.get_type_layout().unwrap();
             let category = type_layout.get_parameter_category();
 
-            let param = Param {
-                name: name.into(),
-                ty: ty.into(),
-            };
+            // Guess param type for the moment
+            let mut param_type = ParamType::from_type(ty);
 
             match category {
-                slang::ParameterCategory::PushConstantBuffer => constants.push(param),
+                slang::ParameterCategory::PushConstantBuffer => {
+                    let param = Param::new(name.into(), param_type);
+                    constants.push(param)
+                }
                 slang::ParameterCategory::DescriptorTableSlot
                 | slang::ParameterCategory::Uniform => {
                     let binding = var_layout.get_binding_index();
                     let set = var_layout.get_binding_space();
+                    let param = Param::new(name.into(), param_type);
                     let uniform = Uniform::new(param, set, binding, 0);
                     uniforms.push(uniform)
                 }
@@ -217,6 +224,8 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
                                 set = var_layout.get_binding_space_for_category(sub_category);
                             }
                             slang::ParameterCategory::Subpass => {
+                                // This is a subpass input, so the param type should be `Image`
+                                param_type = ParamType::Image;
                                 input_attachment_index = var_layout.get_offset(sub_category) as u32;
                             }
                             _ => panic!(
@@ -228,6 +237,7 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
                         }
                     }
 
+                    let param = Param::new(name.into(), param_type);
                     uniforms.push(Uniform::new(param, set, binding, input_attachment_index))
                 }
                 _ => panic!(
@@ -345,6 +355,12 @@ pub struct Param {
     ty: ParamType,
 }
 
+impl Param {
+    pub fn new(name: String, ty: ParamType) -> Self {
+        Self { name, ty }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Uniform {
     pub param: Param,
@@ -385,8 +401,54 @@ pub enum ParamType {
     Struct(usize),
 }
 
-impl From<slang::ReflectionType> for ParamType {
-    fn from(ty: slang::ReflectionType) -> Self {
+impl ParamType {
+    fn get_type_size(ty: slang::ReflectionType) -> usize {
+        let kind = ty.get_kind();
+        let element_count = ty.get_element_count();
+        let column_count = ty.get_column_count();
+        let row_count = ty.get_row_count();
+        match kind {
+            slang::TypeKind::Vector => match element_count {
+                2 => 2 * 4,
+                3 => 3 * 4,
+                4 => 4 * 4,
+                _ => panic!(
+                    "{}:{}: unsupported vector[{}]",
+                    file!(),
+                    line!(),
+                    element_count
+                ),
+            },
+            slang::TypeKind::Matrix => match (row_count, column_count) {
+                (3, 3) => 3 * 3 * 4,
+                (4, 4) => 4 * 4 * 4,
+                _ => panic!(
+                    "{}:{}: unsupported matrix[{}][{}]",
+                    file!(),
+                    line!(),
+                    row_count,
+                    column_count
+                ),
+            },
+            slang::TypeKind::ConstantBuffer => {
+                let element_type = ty.get_element_type().unwrap();
+                Self::get_type_size(element_type)
+            }
+            slang::TypeKind::Struct => {
+                let mut size = 0;
+                for i in 0..ty.get_field_count() {
+                    if let Some(field) = ty.get_field_by_index(i) {
+                        let field_ty = field.get_type();
+                        size += ParamType::get_type_size(field_ty);
+                    }
+                }
+                size
+            }
+            _ => panic!("{}:{}: unsupported slang type {:?}", file!(), line!(), kind),
+        }
+    }
+
+    fn from_type(ty: slang::ReflectionType) -> Self {
         let kind = ty.get_kind();
         let element_count = ty.get_element_count();
         let column_count = ty.get_column_count();
@@ -414,15 +476,22 @@ impl From<slang::ReflectionType> for ParamType {
                     column_count
                 ),
             },
-            slang::TypeKind::ConstantBuffer => ty.get_element_type().unwrap().into(),
+            slang::TypeKind::ConstantBuffer => {
+                let element_type = ty.get_element_type().unwrap();
+                Self::from_type(element_type)
+            }
             slang::TypeKind::Resource => Self::SampledImage,
-            slang::TypeKind::Struct => Self::Image,
+            slang::TypeKind::Struct => {
+                let size = Self::get_type_size(ty);
+                // Align size to 16 bytes
+                let size = (size + 15) / 16 * 16;
+                Self::Struct(size)
+            }
             slang::TypeKind::SamplerState => Self::SampledImage,
             _ => panic!("{}:{}: unsupported slang type {:?}", file!(), line!(), kind),
         }
     }
-}
-impl ParamType {
+
     pub fn get_size(&self) -> usize {
         match self {
             ParamType::Vec2 => std::mem::size_of::<f32>() * 2,
@@ -430,7 +499,12 @@ impl ParamType {
             ParamType::Vec4 => std::mem::size_of::<f32>() * 4,
             ParamType::Mat3 => std::mem::size_of::<f32>() * 9,
             ParamType::Mat4 => std::mem::size_of::<f32>() * 16,
-            ParamType::Struct(size) => *size,
+            ParamType::Struct(size) => {
+                if *size == 0 {
+                    panic!("{}:{}: Struct size is not known", file!(), line!());
+                }
+                *size
+            }
             _ => panic!("{}:{}: no size for `{:?}`", file!(), line!(), self),
         }
     }
@@ -751,6 +825,31 @@ mod test {
         assert!(!pipeline.shaders.is_empty());
         let shader = &pipeline.shaders[0];
         assert_eq!(shader.constants[0].ty, ParamType::Vec4);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_complex_constants() -> Result<(), Box<dyn Error>> {
+        let code = r#"
+            struct PushConstants {
+                float4 color;
+            };
+            [vk::push_constant] PushConstants constants;
+            [shader("fragment")]
+            float4 main() : SV_Target {
+                return constants.color;
+            }
+        "#;
+
+        let slang = Slang::new();
+        let vert = slang.from_source("test", code);
+        let pipeline = Pipeline::builder().name("Shader").vert(vert).build();
+        assert_eq!(pipeline.name, "Shader");
+
+        assert!(!pipeline.shaders.is_empty());
+        let shader = &pipeline.shaders[0];
+        assert_eq!(shader.constants[0].ty, ParamType::Struct(16));
 
         Ok(())
     }

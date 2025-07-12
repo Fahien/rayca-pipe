@@ -61,11 +61,14 @@ impl RenderPipeline for PipelineMain {
             &texture,
         );
 
-        self.push_ambient(&frame.cache.command_buffer, &Vec4::ZERO);
+        let color = Vec4::new(0.0, 0.0, 0.0, 1.0);
+        let bytes: &[u8; 16] = unsafe { std::mem::transmute(&color) };
+        self.push_constants(&frame.cache.command_buffer, bytes);
 
         self.draw(&frame.cache, &model.primitives[0]);
     }
 }
+
 impl RenderPipeline for PipelineSecondary {
     fn render(
         &self,
