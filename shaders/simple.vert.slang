@@ -10,7 +10,10 @@ ConstantBuffer<float4x4> view;
 [vk::binding(1, 1)]
 ConstantBuffer<float4x4> proj;
 
+[vk::push_constant]
+float4x4 pretransform;
+
 [shader("vertex")]
 float4 main(float3 pos) : SV_Position {
-    return mul(proj, mul(view, mul(model, float4(pos, 1.0))));
+    return mul(pretransform, mul(proj, mul(view, mul(model, float4(pos, 1.0)))));
 }

@@ -61,9 +61,9 @@ impl RenderPipeline for PipelineMain {
             &texture,
         );
 
-        let color = Vec4::new(0.0, 0.0, 0.0, 1.0);
-        let bytes: &[u8; 16] = unsafe { std::mem::transmute(&color) };
-        self.push_constants(&frame.cache.command_buffer, bytes);
+        let pretransform = Mat4::identity();
+        let bytes = unsafe { std::mem::transmute(&pretransform) };
+        self.push_pretransform(&frame.cache.command_buffer, bytes);
 
         self.draw(&frame.cache, &model.primitives[0]);
     }

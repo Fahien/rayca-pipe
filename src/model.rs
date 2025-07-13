@@ -199,12 +199,12 @@ impl<'a> From<ShaderReflection<'a>> for Shader {
             let mut param_type = ParamType::from_type(ty);
 
             match category {
-                slang::ParameterCategory::PushConstantBuffer => {
+                slang::ParameterCategory::PushConstantBuffer
+                | slang::ParameterCategory::Uniform => {
                     let param = Param::new(name.into(), param_type);
                     constants.push(param)
                 }
-                slang::ParameterCategory::DescriptorTableSlot
-                | slang::ParameterCategory::Uniform => {
+                slang::ParameterCategory::DescriptorTableSlot => {
                     let binding = var_layout.get_binding_index();
                     let set = var_layout.get_binding_space();
                     let param = Param::new(name.into(), param_type);
@@ -850,6 +850,43 @@ mod test {
         assert!(!pipeline.shaders.is_empty());
         let shader = &pipeline.shaders[0];
         assert_eq!(shader.constants[0].ty, ParamType::Struct(16));
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_input_attachment_and_push_constant() -> Result<(), Box<dyn Error>> {
+        let code = r#"
+            [vk::push_constant]
+            float4x4 pretransform;
+            [vk::binding(0, 0)]
+            ConstantBuffer<float4x4> model;
+            [shader("vertex")]
+            float4 main(
+                float3 pos,
+                float2 uv,
+                float4 color,
+            ) : SV_Position {
+                return mul(pretransform, mul(model, float4(pos, 1.0)));
+            }
+        "#;
+
+        let slang = Slang::new();
+        let vert = slang.from_source("test", code);
+        let pipeline = Pipeline::builder().name("Shader").vert(vert).build();
+        assert_eq!(pipeline.name, "Shader");
+
+        assert!(!pipeline.shaders.is_empty());
+        let shader = &pipeline.shaders[0];
+
+        assert_eq!(shader.uniforms.len(), 1);
+        assert_eq!(shader.uniforms[0].param.ty, ParamType::Mat4);
+        assert_eq!(shader.uniforms[0].input_attachment_index, 0);
+        assert_eq!(shader.uniforms[0].set, 0);
+        assert_eq!(shader.uniforms[0].binding, 0);
+
+        assert_eq!(shader.constants.len(), 1);
+        assert_eq!(shader.constants[0].ty, ParamType::Mat4);
 
         Ok(())
     }

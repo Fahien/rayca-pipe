@@ -978,9 +978,9 @@ checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
 name = "memmap2"
-version = "0.9.5"
+version = "0.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd3f7eed9d3848f8b98834af67102b720745c4ec028fcd0aa0239277e7de374f"
+checksum = "483758ad303d734cec05e5c12b41d7e93e6a6390c5e9dae6bdeb7c1259012d28"
 dependencies = [
  "libc",
 ]
@@ -1714,7 +1714,7 @@ dependencies = [
 [[package]]
 name = "rayca-core"
 version = "0.1.0"
-source = "git+https://github.com/Fahien/rayca-core#33a90645398974f48fa92543abdd4bd67877ef7b"
+source = "git+https://github.com/Fahien/rayca-core#ce8b89f22da87320e802c39ed07c654b45d74df6"
 dependencies = [
  "ash",
  "image",
@@ -1752,7 +1752,7 @@ dependencies = [
 [[package]]
 name = "rayca-math"
 version = "0.1.0"
-source = "git+https://github.com/Fahien/rayca-math#31982d8e844704a337ec8a4f6b18c6418fee2088"
+source = "git+https://github.com/Fahien/rayca-math#440886b8789f8fa0a498622db0a91e59119e85b0"
 dependencies = [
  "num-traits",
  "rand 0.9.1",
@@ -1773,7 +1773,7 @@ dependencies = [
 [[package]]
 name = "rayca-pipe"
 version = "0.0.1"
-source = "git+https://github.com/Fahien/rayca-pipe#66e6f5a20f696abc7f1395de18926536d2064dd8"
+source = "git+https://github.com/Fahien/rayca-pipe#68b365ee6e4f1b625c1e46026d4ecefca444541d"
 dependencies = [
  "proc-macro2",
  "quote",

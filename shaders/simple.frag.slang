@@ -12,14 +12,7 @@ Texture2D albedo;
 [vk::input_attachment_index(0)]
 SubpassInput scene_color;
 
-struct PushConstants {
-    float4 ambient;
-};
-
-[vk::push_constant]
-PushConstants constants;
-
 [shader("fragment")]
 float4 main() : SV_Target {
-    return constants.ambient * color * scene_color.SubpassLoad();
+    return color * scene_color.SubpassLoad();
 }
