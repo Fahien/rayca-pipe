@@ -61,11 +61,27 @@ impl RenderPipeline for PipelineMain {
             &texture,
         );
 
-        let pretransform = Mat4::identity();
-        let bytes = unsafe { std::mem::transmute(&pretransform) };
-        self.push_pretransform(&frame.cache.command_buffer, bytes);
+        let constants = PushConstants {
+            pretransform: Mat4::identity(),
+        };
+        self.push_constants(&frame.cache.command_buffer, &constants);
 
         self.draw(&frame.cache, &model.primitives[0]);
+    }
+}
+
+struct PushConstants {
+    pretransform: Mat4,
+}
+
+impl AsBytes for PushConstants {
+    fn as_bytes(&self) -> &[u8] {
+        unsafe {
+            std::slice::from_raw_parts(
+                self as *const Self as *const u8,
+                std::mem::size_of::<Self>(),
+            )
+        }
     }
 }
 

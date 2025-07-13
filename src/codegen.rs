@@ -481,16 +481,10 @@ impl ToTokens for PushMethod {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let push_signature = format_ident!("push_{}", self.name);
         let arg_name = Ident::new(&self.name, Span::call_site());
-        let arg_type = &self.ty;
         let stage = self.stage;
         tokens.extend(quote! {
-            pub fn #push_signature(&self, command_buffer: &CommandBuffer, #arg_name: &#arg_type) {
-                let bytes = unsafe {
-                    std::slice::from_raw_parts(
-                        #arg_name as *const #arg_type as *const u8,
-                        std::mem::size_of::<#arg_type>(),
-                    )
-                };
+            pub fn #push_signature<B: AsBytes>(&self, command_buffer: &CommandBuffer, #arg_name: &B) {
+                let bytes = #arg_name.as_bytes();
                 command_buffer.push_constants(
                     self,
                     #stage,
