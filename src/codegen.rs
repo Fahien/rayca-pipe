@@ -46,7 +46,7 @@ impl ToTokens for Pipeline {
                 set_layouts: Vec<vk::DescriptorSetLayout>,
                 layout: vk::PipelineLayout,
                 pipeline: vk::Pipeline,
-                device: std::rc::Rc<ash::Device>,
+                device: std::sync::Arc<ash::Device>,
                 name: String,
             }
 
