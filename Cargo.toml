@@ -13,8 +13,8 @@ proc-macro = true
 [dependencies]
 syn = { version = "2.0.41", features = ["full"] }
 quote = "1.0.33"
-slang = { git = "https://github.com/Fahien/slang-rs" }
+slang = { git = "https://github.com/fahien/slang-rs" }
 proc-macro2 = "1.0.95"
 
 [dev-dependencies]
-rayca-core = { git = "https://github.com/Fahien/rayca-core" }
+rayca-core = { git = "https://github.com/fahien/rayca-core.git" }

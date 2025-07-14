@@ -20,11 +20,11 @@ impl RenderPipeline for PipelineMain {
     fn render(
         &self,
         frame: &mut Frame,
-        model: Option<&RenderModel>,
-        _camera_nodes: &[Handle<Node>],
-        _nodes: &[Handle<Node>],
+        scene: &RenderScene,
+        _camera_infos: &[CameraDrawInfo],
+        _infos: Vec<DrawInfo>,
     ) {
-        let model = model.as_ref().unwrap();
+        let model = scene.get_default_model();
 
         self.bind(&frame.cache);
 
@@ -61,17 +61,16 @@ impl RenderPipeline for PipelineMain {
             &texture,
         );
 
-        let constants = PushConstants {
-            pretransform: Mat4::identity(),
-        };
+        let constants = PushConstants::default();
         self.push_constants(&frame.cache.command_buffer, &constants);
 
         self.draw(&frame.cache, &model.primitives[0]);
     }
 }
 
+#[derive(Default)]
 struct PushConstants {
-    pretransform: Mat4,
+    _pretransform: Mat4,
 }
 
 impl AsBytes for PushConstants {
@@ -89,9 +88,9 @@ impl RenderPipeline for PipelineSecondary {
     fn render(
         &self,
         _frame: &mut Frame,
-        _model: Option<&RenderModel>,
-        _camera_nodes: &[Handle<Node>],
-        _nodes: &[Handle<Node>],
+        _scene: &RenderScene,
+        _camera_infos: &[CameraDrawInfo],
+        _infos: Vec<DrawInfo>,
     ) {
     }
 }
