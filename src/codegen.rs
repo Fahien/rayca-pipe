@@ -482,6 +482,7 @@ impl ToTokens for PushMethod {
         let push_signature = format_ident!("push_{}", self.name);
         let arg_name = Ident::new(&self.name, Span::call_site());
         let stage = self.stage;
+        let size = self.ty.get_size();
         tokens.extend(quote! {
             pub fn #push_signature<B: AsBytes>(&self, command_buffer: &CommandBuffer, #arg_name: &B) {
                 let bytes = #arg_name.as_bytes();
@@ -489,7 +490,7 @@ impl ToTokens for PushMethod {
                     self,
                     #stage,
                     0, //offset,
-                    bytes
+                    &bytes[0..#size]
                 );
             }
         })
