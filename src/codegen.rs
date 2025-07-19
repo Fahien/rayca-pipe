@@ -406,7 +406,7 @@ impl ToTokens for ParamType {
 impl ToTokens for VkrType {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let new_tokens = match self {
-            VkrType::Buffer => quote! { Buffer },
+            VkrType::Buffer => quote! { RenderBuffer },
             VkrType::Texture => quote! { RenderTexture },
         };
         tokens.extend(new_tokens);
